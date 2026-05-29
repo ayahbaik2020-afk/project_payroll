@@ -881,10 +881,49 @@ app.get('/api/payroll/payslip/:employeeId/:period', checkRole(['Super Admin / IT
     }
 
     const slipFilename = `payslip_${emp.nik}_${period}.pdf`;
-    const fileLocation = path.join(PAYSLIPS_DIR, period, slipFilename);
+    const fileFolder = path.join(PAYSLIPS_DIR, period);
+    const fileLocation = path.join(fileFolder, slipFilename);
 
     if (!fs.existsSync(fileLocation)) {
-      return res.status(404).json({ error: 'Payslip PDF not generated yet. Ensure payroll for this period is approved.' });
+      // Ephemeral serverless container fix: if file doesn't exist, check database approval and generate on the fly
+      const run = await dbGet('SELECT * FROM payroll_runs WHERE period = ?', [period]);
+      if (!run || run.status !== 'APPROVED') {
+        return res.status(404).json({ error: 'Payslip PDF not generated yet. Ensure payroll for this period is approved.' });
+      }
+
+      const detail = await dbGet(`
+        SELECT * FROM payroll_details 
+        WHERE payroll_run_id = ? AND employee_id = ?
+      `, [run.id, employeeId]);
+
+      if (!detail) {
+        return res.status(404).json({ error: 'Payslip detail not found for this employee and period.' });
+      }
+
+      // Ensure directory exists
+      if (!fs.existsSync(fileFolder)) {
+        fs.mkdirSync(fileFolder, { recursive: true });
+      }
+
+      const settings = await getSystemSettings();
+      const employeeInfo = {
+        nik: emp.nik,
+        name: emp.name,
+        position: emp.position,
+        ptkp: emp.ptkp,
+        status: emp.status,
+        bank_name: emp.bank_name,
+        birth_date: emp.birth_date,
+        email: emp.email
+      };
+
+      const detailInfo = {
+        ...detail,
+        bank_account: decrypt(emp.bank_account_encrypted)
+      };
+
+      // Generate the PDF file on the fly
+      await generatePayslipPdf(employeeInfo, detailInfo, period, fileLocation, settings);
     }
 
     // Set headers for inline rendering or download
