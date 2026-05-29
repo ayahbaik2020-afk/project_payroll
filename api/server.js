@@ -995,8 +995,27 @@ app.post('/api/attendance/import', checkRole(['Super Admin / IT Tech', 'HR Payro
   }
 });
 
+// ==========================================
+// 10. STATIC FILES & SPA CATCH-ALL
+// ==========================================
+
+// Serve static frontend files from /public directory
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// SPA Catch-all: Serve index.html for all non-API routes
+// This allows the frontend to handle routing (e.g., /login, /dashboard)
+app.get('*', (req, res) => {
+  // Only redirect non-API routes to the SPA
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  } else {
+    res.status(404).json({ error: 'API endpoint not found.' });
+  }
+});
+
 // Expose Express app for Vercel Serverless Functions
 module.exports = app;
+
 
 // Start server only when running locally (not in serverless environment)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
