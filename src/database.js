@@ -1,15 +1,25 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 const crypto = require('crypto');
-const fs = require('fs');
 
-// Ensure database directory exists
-const dbPath = path.resolve(__dirname, '../payroll.db');
-const db = new sqlite3.Database(dbPath);
+// Disable TLS validation for self-signed certificates (Supabase pooler requirement)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// Encryption details
+// Initialise connection pool
+// We support DATABASE_URL for Vercel/Supabase connection
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error("WARNING: DATABASE_URL is not set in environment variables!");
+}
+
+const pool = new Pool({
+  connectionString,
+  ssl: connectionString ? { rejectUnauthorized: false } : false
+});
+
+// Encryption details (AES-256-CBC)
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'd6F3E506a5D24aE1b99B3f2c5D6e7F8a'; // 32-character fallback key
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'd6F3E506a5D24aE1b99B3f2c5D6e7F8a'; // 32-character key
 const IV_LENGTH = 16;
 
 if (ENCRYPTION_KEY.length !== 32) {
@@ -44,147 +54,208 @@ function decrypt(ciphertext) {
   }
 }
 
-// Promisified Database methods
-const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
-  db.run(sql, params, function(err) {
-    if (err) reject(err);
-    else resolve({ id: this.lastID, changes: this.changes });
-  });
-});
+// Helper to convert SQLite parameter placeholder '?' to PostgreSQL '$1', '$2', etc.
+function convertParams(sql) {
+  let index = 1;
+  return sql.replace(/\?/g, () => `$${index++}`);
+}
 
-const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
-  db.all(sql, params, (err, rows) => {
-    if (err) reject(err);
-    else resolve(rows);
-  });
-});
+// Promisified Database methods mapping SQLite style to PostgreSQL Pool
+const dbRun = async (sql, params = []) => {
+  let pgSql = convertParams(sql);
+  
+  // Automate RETURNING id for PG inserts to mimic SQLite lastID
+  const isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
+  const hasReturning = pgSql.toUpperCase().includes('RETURNING');
+  if (isInsert && !hasReturning) {
+    pgSql += ' RETURNING id';
+  }
 
-const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
-  db.get(sql, params, (err, row) => {
-    if (err) reject(err);
-    else resolve(row);
-  });
-});
+  const res = await pool.query(pgSql, params);
+  
+  return {
+    id: res.rows && res.rows[0] ? res.rows[0].id : null,
+    changes: res.rowCount
+  };
+};
 
-// Initialize Database Tables
+const dbAll = async (sql, params = []) => {
+  const pgSql = convertParams(sql);
+  const res = await pool.query(pgSql, params);
+  return res.rows;
+};
+
+const dbGet = async (sql, params = []) => {
+  const pgSql = convertParams(sql);
+  const res = await pool.query(pgSql, params);
+  return res.rows[0] || null;
+};
+
+// PostgreSQL connection client transaction wrapper
+async function dbTransaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const run = async (sql, params = []) => {
+      let pgSql = convertParams(sql);
+      const isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
+      const hasReturning = pgSql.toUpperCase().includes('RETURNING');
+      if (isInsert && !hasReturning) {
+        pgSql += ' RETURNING id';
+      }
+      const res = await client.query(pgSql, params);
+      return {
+        id: res.rows && res.rows[0] ? res.rows[0].id : null,
+        changes: res.rowCount
+      };
+    };
+
+    const all = async (sql, params = []) => {
+      const pgSql = convertParams(sql);
+      const res = await client.query(pgSql, params);
+      return res.rows;
+    };
+
+    const get = async (sql, params = []) => {
+      const pgSql = convertParams(sql);
+      const res = await client.query(pgSql, params);
+      return res.rows[0] || null;
+    };
+
+    const result = await fn({ run, all, get });
+    
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Initialize PostgreSQL database tables
 async function initDb() {
-  // 1. Employees Table
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS employees (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nik TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      position TEXT NOT NULL,
-      status TEXT NOT NULL, -- PKWT, PKWTT
-      ptkp TEXT NOT NULL, -- TK/0, TK/1, TK/2, TK/3, K/0, K/1, K/2, K/3, K/I/0, K/I/1, K/I/2, K/I/3
-      bank_name TEXT NOT NULL, -- BCA, MANDIRI, BRI, BNI
-      bank_account_encrypted TEXT NOT NULL,
-      bpjs_ks_id TEXT,
-      bpjs_tk_id TEXT,
-      basic_salary_encrypted TEXT NOT NULL,
-      allowance_fixed_encrypted TEXT NOT NULL,
-      allowance_transport REAL DEFAULT 0, -- Transport allowance per day
-      allowance_meal REAL DEFAULT 0, -- Meal allowance per day
-      email TEXT NOT NULL,
-      birth_date TEXT NOT NULL, -- YYYY-MM-DD
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  // 2. Attendance Table
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS attendance (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      employee_id INTEGER NOT NULL,
-      period TEXT NOT NULL, -- YYYY-MM
-      days_present INTEGER DEFAULT 0,
-      days_late INTEGER DEFAULT 0,
-      days_absent INTEGER DEFAULT 0,
-      overtime_hours_first REAL DEFAULT 0, -- First hour overtime (1.5x)
-      overtime_hours_next REAL DEFAULT 0,  -- Next hours overtime (2x)
-      bonus REAL DEFAULT 0,
-      insentif REAL DEFAULT 0,
-      thr REAL DEFAULT 0,
-      FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
-      UNIQUE(employee_id, period)
-    )
-  `);
+    // 1. Employees Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS employees (
+        id SERIAL PRIMARY KEY,
+        nik VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        position VARCHAR(255) NOT NULL,
+        status VARCHAR(50) NOT NULL, -- PKWT, PKWTT
+        ptkp VARCHAR(50) NOT NULL, -- TK/0 to K/I/3
+        bank_name VARCHAR(50) NOT NULL,
+        bank_account_encrypted TEXT NOT NULL,
+        bpjs_ks_id VARCHAR(50),
+        bpjs_tk_id VARCHAR(50),
+        basic_salary_encrypted TEXT NOT NULL,
+        allowance_fixed_encrypted TEXT NOT NULL,
+        allowance_transport DOUBLE PRECISION DEFAULT 0,
+        allowance_meal DOUBLE PRECISION DEFAULT 0,
+        email VARCHAR(255) NOT NULL,
+        birth_date VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // 3. Payroll Runs (Main Batch table)
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS payroll_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      period TEXT UNIQUE NOT NULL, -- YYYY-MM
-      status TEXT NOT NULL DEFAULT 'DRAFT', -- DRAFT, SUBMITTED, APPROVED
-      submitted_by TEXT,
-      submitted_at DATETIME,
-      approved_by TEXT,
-      approved_at DATETIME,
-      rejection_notes TEXT
-    )
-  `);
+    // 2. Attendance Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS attendance (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        period VARCHAR(10) NOT NULL, -- YYYY-MM
+        days_present INTEGER DEFAULT 0,
+        days_late INTEGER DEFAULT 0,
+        days_absent INTEGER DEFAULT 0,
+        overtime_hours_first DOUBLE PRECISION DEFAULT 0,
+        overtime_hours_next DOUBLE PRECISION DEFAULT 0,
+        bonus DOUBLE PRECISION DEFAULT 0,
+        insentif DOUBLE PRECISION DEFAULT 0,
+        thr DOUBLE PRECISION DEFAULT 0,
+        UNIQUE(employee_id, period)
+      )
+    `);
 
-  // 4. Payroll Details (Results per employee)
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS payroll_details (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      payroll_run_id INTEGER NOT NULL,
-      employee_id INTEGER NOT NULL,
-      
-      -- Salaries & Additions
-      basic_salary REAL NOT NULL,
-      allowance_fixed REAL NOT NULL,
-      allowance_variable REAL DEFAULT 0, -- Transport + Meal (kehadiran aktual)
-      overtime_pay REAL DEFAULT 0,
-      bonus REAL DEFAULT 0,
-      insentif REAL DEFAULT 0,
-      thr REAL DEFAULT 0,
-      gross_salary REAL NOT NULL,
-      
-      -- Deductions (BPJS & Tax)
-      bpjs_ks_employee REAL DEFAULT 0,
-      bpjs_ks_company REAL DEFAULT 0,
-      bpjs_tk_jht_employee REAL DEFAULT 0,
-      bpjs_tk_jht_company REAL DEFAULT 0,
-      bpjs_tk_jp_employee REAL DEFAULT 0,
-      bpjs_tk_jp_company REAL DEFAULT 0,
-      bpjs_tk_jkk_company REAL DEFAULT 0,
-      bpjs_tk_jkm_company REAL DEFAULT 0,
-      
-      -- Tax details
-      pph21_rate REAL DEFAULT 0,
-      pph21_amount REAL DEFAULT 0,
-      
-      -- Net Salary
-      net_salary REAL NOT NULL,
-      payslip_path TEXT,
-      
-      FOREIGN KEY (payroll_run_id) REFERENCES payroll_runs(id) ON DELETE CASCADE,
-      FOREIGN KEY (employee_id) REFERENCES employees(id),
-      UNIQUE(payroll_run_id, employee_id)
-    )
-  `);
+    // 3. Payroll Runs
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payroll_runs (
+        id SERIAL PRIMARY KEY,
+        period VARCHAR(10) UNIQUE NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'DRAFT', -- DRAFT, SUBMITTED, APPROVED
+        submitted_by VARCHAR(255),
+        submitted_at TIMESTAMP,
+        approved_by VARCHAR(255),
+        approved_at TIMESTAMP,
+        rejection_notes TEXT
+      )
+    `);
 
-  // 5. Audit Logs Table (Strictly Read-Only from app interface)
-  await dbRun(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      action TEXT NOT NULL,
-      ip_address TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      old_value TEXT,
-      new_value TEXT
-    )
-  `);
+    // 4. Payroll Details
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payroll_details (
+        id SERIAL PRIMARY KEY,
+        payroll_run_id INTEGER NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
+        employee_id INTEGER NOT NULL REFERENCES employees(id),
+        basic_salary DOUBLE PRECISION NOT NULL,
+        allowance_fixed DOUBLE PRECISION NOT NULL,
+        allowance_variable DOUBLE PRECISION DEFAULT 0,
+        overtime_pay DOUBLE PRECISION DEFAULT 0,
+        bonus DOUBLE PRECISION DEFAULT 0,
+        insentif DOUBLE PRECISION DEFAULT 0,
+        thr DOUBLE PRECISION DEFAULT 0,
+        gross_salary DOUBLE PRECISION NOT NULL,
+        bpjs_ks_employee DOUBLE PRECISION DEFAULT 0,
+        bpjs_ks_company DOUBLE PRECISION DEFAULT 0,
+        bpjs_tk_jht_employee DOUBLE PRECISION DEFAULT 0,
+        bpjs_tk_jht_company DOUBLE PRECISION DEFAULT 0,
+        bpjs_tk_jp_employee DOUBLE PRECISION DEFAULT 0,
+        bpjs_tk_jp_company DOUBLE PRECISION DEFAULT 0,
+        bpjs_tk_jkk_company DOUBLE PRECISION DEFAULT 0,
+        bpjs_tk_jkm_company DOUBLE PRECISION DEFAULT 0,
+        pph21_rate DOUBLE PRECISION DEFAULT 0,
+        pph21_amount DOUBLE PRECISION DEFAULT 0,
+        net_salary DOUBLE PRECISION NOT NULL,
+        payslip_path TEXT,
+        UNIQUE(payroll_run_id, employee_id)
+      )
+    `);
+
+    // 5. Audit Logs Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        action VARCHAR(255) NOT NULL,
+        ip_address VARCHAR(50),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        old_value TEXT,
+        new_value TEXT
+      )
+    `);
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Database schema init failed:", err.message);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = {
-  db,
+  pool,
   encrypt,
   decrypt,
   dbRun,
   dbAll,
   dbGet,
+  dbTransaction,
   initDb
 };

@@ -13,7 +13,8 @@ const {
   decrypt, 
   dbRun, 
   dbAll, 
-  dbGet 
+  dbGet,
+  dbTransaction
 } = require('./src/database');
 
 const { 
@@ -441,94 +442,96 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
 
     // 3. Upsert payroll run record
     let runId;
-    if (run) {
-      runId = run.id;
-      // Reset status to DRAFT on regeneration
-      await dbRun("UPDATE payroll_runs SET status = 'DRAFT', rejection_notes = NULL WHERE id = ?", [runId]);
-      // Clear old details
-      await dbRun('DELETE FROM payroll_details WHERE payroll_run_id = ?', [runId]);
-    } else {
-      const newRun = await dbRun('INSERT INTO payroll_runs (period, status) VALUES (?, ?)', [period, 'DRAFT']);
-      runId = newRun.id;
-    }
-
-    // Identify if it's December (Annual progressive calculation)
-    const isDecember = period.endsWith('-12');
-
-    // 4. Batch Calculate for each employee
-    for (const emp of employees) {
-      // Decrypt credentials
-      const employeeData = {
-        id: emp.id,
-        nik: emp.nik,
-        name: emp.name,
-        position: emp.position,
-        ptkp: emp.ptkp,
-        status: emp.status,
-        basicSalary: parseFloat(decrypt(emp.basic_salary_encrypted) || '0'),
-        allowanceFixed: parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0'),
-        allowanceTransport: emp.allowance_transport || 0,
-        allowanceMeal: emp.allowance_meal || 0,
-        birth_date: emp.birth_date
-      };
-
-      // Fetch attendance
-      let att = await dbGet('SELECT * FROM attendance WHERE employee_id = ? AND period = ?', [emp.id, period]);
-      if (!att) {
-        // Fallback default attendance if not synced
-        att = {
-          days_present: 20,
-          days_late: 0,
-          days_absent: 0,
-          overtime_hours_first: 0,
-          overtime_hours_next: 0,
-          bonus: 0,
-          insentif: 0,
-          thr: 0
-        };
-      }
-
-      let calcResult;
-      
-      if (isDecember) {
-        // Retrieve prior period history (Jan-Nov of current year)
-        const yearPrefix = period.split('-')[0];
-        const history = await dbAll(`
-          SELECT pd.* 
-          FROM payroll_details pd
-          JOIN payroll_runs pr ON pd.payroll_run_id = pr.id
-          WHERE pd.employee_id = ? 
-            AND pr.period LIKE ?
-            AND pr.period < ?
-            AND pr.status = 'APPROVED'
-        `, [emp.id, `${yearPrefix}-%`, period]);
-
-        calcResult = calculateDecemberPayroll(employeeData, att, history);
+    await dbTransaction(async (tx) => {
+      if (run) {
+        runId = run.id;
+        // Reset status to DRAFT on regeneration
+        await tx.run("UPDATE payroll_runs SET status = 'DRAFT', rejection_notes = NULL WHERE id = ?", [runId]);
+        // Clear old details
+        await tx.run('DELETE FROM payroll_details WHERE payroll_run_id = ?', [runId]);
       } else {
-        // Standard Month
-        calcResult = calculateMonthlyPayroll(employeeData, att);
+        const newRun = await tx.run('INSERT INTO payroll_runs (period, status) VALUES (?, ?)', [period, 'DRAFT']);
+        runId = newRun.id;
       }
 
-      // Save calculation results
-      await dbRun(`
-        INSERT INTO payroll_details (
-          payroll_run_id, employee_id, basic_salary, allowance_fixed, allowance_variable,
-          overtime_pay, bonus, insentif, thr, gross_salary,
-          bpjs_ks_employee, bpjs_ks_company, bpjs_tk_jht_employee, bpjs_tk_jht_company,
-          bpjs_tk_jp_employee, bpjs_tk_jp_company, bpjs_tk_jkk_company, bpjs_tk_jkm_company,
-          pph21_rate, pph21_amount, net_salary
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        runId, emp.id, 
-        calcResult.basic_salary, calcResult.allowance_fixed, calcResult.allowance_variable,
-        calcResult.overtime_pay, calcResult.bonus, calcResult.insentif, calcResult.thr, calcResult.gross_salary,
-        calcResult.bpjs_ks_employee, calcResult.bpjs_ks_company, 
-        calcResult.bpjs_tk_jht_employee, calcResult.bpjs_tk_jht_company,
-        calcResult.bpjs_tk_jp_employee, calcResult.bpjs_tk_jp_company,
-        calcResult.bpjs_tk_jkk_company, calcResult.bpjs_tk_jkm_company,
-        calcResult.pph21_rate, calcResult.pph21_amount, calcResult.net_salary
-      ]);
-    }
+      // Identify if it's December (Annual progressive calculation)
+      const isDecember = period.endsWith('-12');
+
+      // 4. Batch Calculate for each employee
+      for (const emp of allEmployees || employees) {
+        // Decrypt credentials
+        const employeeData = {
+          id: emp.id,
+          nik: emp.nik,
+          name: emp.name,
+          position: emp.position,
+          ptkp: emp.ptkp,
+          status: emp.status,
+          basicSalary: parseFloat(decrypt(emp.basic_salary_encrypted) || '0'),
+          allowanceFixed: parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0'),
+          allowanceTransport: emp.allowance_transport || 0,
+          allowanceMeal: emp.allowance_meal || 0,
+          birth_date: emp.birth_date
+        };
+
+        // Fetch attendance
+        let att = await tx.get('SELECT * FROM attendance WHERE employee_id = ? AND period = ?', [emp.id, period]);
+        if (!att) {
+          // Fallback default attendance if not synced
+          att = {
+            days_present: 20,
+            days_late: 0,
+            days_absent: 0,
+            overtime_hours_first: 0,
+            overtime_hours_next: 0,
+            bonus: 0,
+            insentif: 0,
+            thr: 0
+          };
+        }
+
+        let calcResult;
+        
+        if (isDecember) {
+          // Retrieve prior period history (Jan-Nov of current year)
+          const yearPrefix = period.split('-')[0];
+          const history = await tx.all(`
+            SELECT pd.* 
+            FROM payroll_details pd
+            JOIN payroll_runs pr ON pd.payroll_run_id = pr.id
+            WHERE pd.employee_id = ? 
+              AND pr.period LIKE ?
+              AND pr.period < ?
+              AND pr.status = 'APPROVED'
+          `, [emp.id, `${yearPrefix}-%`, period]);
+
+          calcResult = calculateDecemberPayroll(employeeData, att, history);
+        } else {
+          // Standard Month
+          calcResult = calculateMonthlyPayroll(employeeData, att);
+        }
+
+        // Save calculation results
+        await tx.run(`
+          INSERT INTO payroll_details (
+            payroll_run_id, employee_id, basic_salary, allowance_fixed, allowance_variable,
+            overtime_pay, bonus, insentif, thr, gross_salary,
+            bpjs_ks_employee, bpjs_ks_company, bpjs_tk_jht_employee, bpjs_tk_jht_company,
+            bpjs_tk_jp_employee, bpjs_tk_jp_company, bpjs_tk_jkk_company, bpjs_tk_jkm_company,
+            pph21_rate, pph21_amount, net_salary
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          runId, emp.id, 
+          calcResult.basic_salary, calcResult.allowance_fixed, calcResult.allowance_variable,
+          calcResult.overtime_pay, calcResult.bonus, calcResult.insentif, calcResult.thr, calcResult.gross_salary,
+          calcResult.bpjs_ks_employee, calcResult.bpjs_ks_company, 
+          calcResult.bpjs_tk_jht_employee, calcResult.bpjs_tk_jht_company,
+          calcResult.bpjs_tk_jp_employee, calcResult.bpjs_tk_jp_company,
+          calcResult.bpjs_tk_jkk_company, calcResult.bpjs_tk_jkm_company,
+          calcResult.pph21_rate, calcResult.pph21_amount, calcResult.net_salary
+        ]);
+      }
+    });
 
     await logAudit(
       req.userId, 
@@ -560,7 +563,7 @@ app.post('/api/payroll/runs/submit', checkRole(['Super Admin / IT Tech', 'HR Pay
 
     await dbRun(`
       UPDATE payroll_runs 
-      SET status = 'SUBMITTED', submitted_by = ?, submitted_at = datetime('now', 'localtime')
+      SET status = 'SUBMITTED', submitted_by = ?, submitted_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [req.userId, run.id]);
 
@@ -585,7 +588,7 @@ app.post('/api/payroll/runs/approve', checkRole(['Super Admin / IT Tech', 'Manag
     // Update status to APPROVED
     await dbRun(`
       UPDATE payroll_runs 
-      SET status = 'APPROVED', approved_by = ?, approved_at = datetime('now', 'localtime')
+      SET status = 'APPROVED', approved_by = ?, approved_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [req.userId, run.id]);
 

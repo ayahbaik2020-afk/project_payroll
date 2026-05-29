@@ -27,8 +27,8 @@ async function logAudit(userId, action, oldValue = null, newValue = null, req = 
 
   try {
     await dbRun(
-      `INSERT INTO audit_logs (user_id, action, ip_address, old_value, new_value, timestamp)
-       VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
+      `INSERT INTO audit_logs (user_id, action, ip_address, old_value, new_value)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         userId,
         action,

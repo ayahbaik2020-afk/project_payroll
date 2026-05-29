@@ -125,3 +125,6 @@ Sistem Penggajian ini dirancang untuk mengotomatisasi seluruh proses perhitungan
 
 ## 9. Setiap pekerjaan di push & commit langsung ke
  https://github.com/ayahbaik2020-afk/project_payroll.git
+ 
+ 
+ 
