@@ -15,16 +15,16 @@ const {
   dbAll, 
   dbGet,
   dbTransaction
-} = require('./src/database');
+} = require('../src/database');
 
 const { 
   calculateMonthlyPayroll, 
   calculateDecemberPayroll 
-} = require('./src/ter_calculator');
+} = require('../src/ter_calculator');
 
-const { logAudit } = require('./src/audit_logger');
-const { generateBankFile } = require('./src/bank_export');
-const { generatePayslipPdf } = require('./src/pdf_generator');
+const { logAudit } = require('../src/audit_logger');
+const { generateBankFile } = require('../src/bank_export');
+const { generatePayslipPdf } = require('../src/pdf_generator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,7 +32,6 @@ const PORT = process.env.PORT || 3000;
 // Middlewares
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Simple Authorization Middleware using HTTP headers for multi-role simulation
 function checkRole(allowedRoles) {
@@ -53,8 +52,8 @@ function checkRole(allowedRoles) {
   };
 }
 
-// Ensure payslip directory exists
-const PAYSLIPS_DIR = path.join(__dirname, 'data', 'payslips');
+// Ensure writeable payslip directory exists in /tmp (required for Serverless environments like Vercel)
+const PAYSLIPS_DIR = path.join('/tmp', 'payslips');
 if (!fs.existsSync(PAYSLIPS_DIR)) {
   fs.mkdirSync(PAYSLIPS_DIR, { recursive: true });
 }
@@ -129,11 +128,6 @@ app.get('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Specia
         basic_salary: parseFloat(decrypt(emp.basic_salary_encrypted) || '0'),
         allowance_fixed: parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0')
       };
-      
-      // Sanitization depending on role
-      if (role === 'Finance / Accounting' || role === 'Management / Direksi') {
-        // Finance and management can see financials, but we can keep it as is
-      }
       
       // Delete encrypted fields before sending to client
       delete decryptedEmp.bank_account_encrypted;
@@ -458,7 +452,7 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
       const isDecember = period.endsWith('-12');
 
       // 4. Batch Calculate for each employee
-      for (const emp of allEmployees || employees) {
+      for (const emp of employees) {
         // Decrypt credentials
         const employeeData = {
           id: emp.id,
@@ -614,8 +608,7 @@ app.post('/api/payroll/runs/approve', checkRole(['Super Admin / IT Tech', 'Manag
       };
 
       const slipFilename = `payslip_${d.nik}_${period}.pdf`;
-      const slipDir = path.join(PAYSLIPS_DIR, period);
-      const slipPath = path.join(slipDir, slipFilename);
+      const slipPath = path.join(PAYSLIPS_DIR, period, slipFilename);
 
       // Generate secure encrypted PDF
       await generatePayslipPdf(employeeInfo, detailInfo, period, slipPath);
@@ -783,25 +776,26 @@ app.get('/api/audit-logs', checkRole(['Super Admin / IT Tech']), async (req, res
   }
 });
 
+// Expose Express app for Vercel Serverless Functions
+module.exports = app;
 
-// ==========================================
-// START SERVER
-// ==========================================
-async function start() {
-  try {
-    console.log("Initializing Database...");
-    await initDb();
-    
-    app.listen(PORT, () => {
-      console.log(`==================================================`);
-      console.log(`   PAYROLL SYSTEM SERVER IS RUNNING ON PORT ${PORT}`);
-      console.log(`   Frontend: http://localhost:${PORT}`);
-      console.log(`==================================================`);
-    });
-  } catch (err) {
-    console.error("Failed to start server:", err.message);
-    process.exit(1);
+// Start server only when running locally (not in serverless environment)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  async function start() {
+    try {
+      console.log("Initializing Database...");
+      await initDb();
+      
+      app.listen(PORT, () => {
+        console.log(`==================================================`);
+        console.log(`   PAYROLL SYSTEM SERVER IS RUNNING ON PORT ${PORT}`);
+        console.log(`   Local URL: http://localhost:${PORT}`);
+        console.log(`==================================================`);
+      });
+    } catch (err) {
+      console.error("Failed to start local server:", err.message);
+      process.exit(1);
+    }
   }
+  start();
 }
-
-start();

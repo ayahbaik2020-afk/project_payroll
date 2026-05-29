@@ -2,10 +2,10 @@
   "name": "payroll-system",
   "version": "1.0.0",
   "description": "Automated Payroll System with TER PPh 21, BPJS calculations, AES-256 db encryption, audit logs, and PDF payslips.",
-  "main": "server.js",
+  "main": "api/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node api/server.js",
+    "dev": "node api/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
