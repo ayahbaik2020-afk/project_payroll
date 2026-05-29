@@ -72,6 +72,9 @@
         <a href="#payroll" class="nav-item" data-view="payroll" id="nav-payroll">
           <i class="fa-solid fa-file-invoice-dollar"></i> <span>Proses Payroll</span>
         </a>
+        <a href="#payslips" class="nav-item" data-view="payslips" id="nav-payslips">
+          <i class="fa-solid fa-receipt"></i> <span>Slip Gaji</span>
+        </a>
         <a href="#settings" class="nav-item" data-view="settings" id="nav-settings">
           <i class="fa-solid fa-gears"></i> <span>Pengaturan Sistem</span>
         </a>
@@ -193,13 +196,14 @@
               <table class="glass-table" id="table-employees">
                 <thead>
                   <tr>
+                    <th>Foto</th>
                     <th>NIK</th>
                     <th>Nama</th>
                     <th>Jabatan</th>
+                    <th>Dept.</th>
                     <th>Status</th>
                     <th>PTKP</th>
                     <th>Gaji Pokok</th>
-                    <th>Tunj. Tetap</th>
                     <th>Bank Rekening</th>
                     <th>Aksi</th>
                   </tr>
@@ -251,6 +255,47 @@
                   <button type="submit" class="btn btn-primary" id="btn-save-attendance"><i class="fa-solid fa-floppy-disk"></i> Simpan Data Kehadiran</button>
                 </div>
               </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAYSLIPS VIEW -->
+        <section id="view-payslips" class="content-view">
+          <div class="panel-card glass-panel">
+            <div class="panel-header table-header-actions flex-wrap gap-2">
+              <h3><i class="fa-solid fa-receipt"></i> Daftar Slip Gaji</h3>
+              <div class="filter-group flex gap-2">
+                <div>
+                  <label for="payslip-period">Periode:</label>
+                  <input type="month" id="payslip-period" class="glass-input-small" value="2026-05">
+                </div>
+                <div id="payslip-search-wrapper">
+                  <label for="payslip-search">Cari Karyawan:</label>
+                  <input type="text" id="payslip-search" class="glass-input-small" placeholder="Nama / NIK..." style="width:160px;">
+                </div>
+                <button class="btn btn-secondary" id="btn-load-payslips"><i class="fa-solid fa-arrows-rotate"></i> Tampilkan</button>
+              </div>
+            </div>
+            <div class="panel-body table-responsive">
+              <table class="glass-table" id="table-payslips">
+                <thead>
+                  <tr>
+                    <th>Foto</th>
+                    <th>NIK</th>
+                    <th>Nama Karyawan</th>
+                    <th>Jabatan</th>
+                    <th>Periode</th>
+                    <th>Gaji Bruto</th>
+                    <th>Total Potongan</th>
+                    <th>Gaji Bersih</th>
+                    <th>Tgl. Disetujui</th>
+                    <th>Unduh PDF</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-payslips">
+                  <tr><td colspan="10" class="text-center">Pilih periode dan klik Tampilkan.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -538,135 +583,205 @@
 
   <!-- EMPLOYEE MODAL (ADD / EDIT) -->
   <div class="modal-backdrop" id="modal-employee">
-    <div class="modal-content glass-panel">
+    <div class="modal-content glass-panel modal-large">
       <div class="modal-header">
-        <h3 id="employee-modal-title">Tambah Karyawan Baru</h3>
+        <div class="modal-header-with-avatar">
+          <img id="emp-photo-preview" src="" alt="Foto" class="emp-avatar-preview" onerror="this.style.display='none'">
+          <div>
+            <h3 id="employee-modal-title">Tambah Karyawan Baru</h3>
+            <small id="emp-dept-preview" style="color:var(--text-muted);">—</small>
+          </div>
+        </div>
         <button class="btn-close" id="btn-close-employee-modal"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <form id="form-employee">
         <input type="hidden" id="emp-id">
+        <!-- Modal Tab Navigation -->
+        <div class="modal-tabs">
+          <button type="button" class="modal-tab-btn active" data-emp-tab="tab-info-dasar"><i class="fa-solid fa-id-card"></i> Info Dasar</button>
+          <button type="button" class="modal-tab-btn" data-emp-tab="tab-data-pribadi"><i class="fa-solid fa-user-shield"></i> Data Pribadi</button>
+          <button type="button" class="modal-tab-btn" data-emp-tab="tab-komponen-gaji"><i class="fa-solid fa-money-bill-wave"></i> Komponen Gaji</button>
+        </div>
         <div class="modal-body scroll-y">
-          <div class="grid-2col">
-            <!-- Profil Dasar -->
-            <div class="section-title span-2-col"><h4><i class="fa-solid fa-id-card"></i> Informasi Karyawan</h4></div>
-            <div class="form-group">
-              <label for="emp-nik">NIK Karyawan <span class="required">*</span></label>
-              <input type="text" id="emp-nik" required class="glass-input" placeholder="Contoh: NIK1001">
-            </div>
-            <div class="form-group">
-              <label for="emp-name">Nama Lengkap <span class="required">*</span></label>
-              <input type="text" id="emp-name" required class="glass-input" placeholder="Nama sesuai KTP">
-            </div>
-            <div class="form-group">
-              <label for="emp-email">Email Perusahaan <span class="required">*</span></label>
-              <input type="email" id="emp-email" required class="glass-input" placeholder="karyawan@perusahaan.com">
-            </div>
-            <div class="form-group">
-              <label for="emp-birthdate">Tanggal Lahir (Password PDF) <span class="required">*</span></label>
-              <input type="date" id="emp-birthdate" required class="glass-input">
-            </div>
-            <div class="form-group">
-              <label for="emp-position">Jabatan <span class="required">*</span></label>
-              <input type="text" id="emp-position" required class="glass-input" placeholder="Contoh: PM / Tech Lead / Staff">
-            </div>
-            <div class="form-group">
-              <label for="emp-status">Status Karyawan <span class="required">*</span></label>
-              <select id="emp-status" required class="glass-select">
-                <option value="PKWT">PKWT (Kontrak)</option>
-                <option value="PKWTT">PKWTT (Tetap)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="emp-ptkp">Status Pajak PTKP <span class="required">*</span></label>
-              <select id="emp-ptkp" required class="glass-select">
-                <option value="TK/0">TK/0 (Belum Kawin, 0 Tanggungan)</option>
-                <option value="TK/1">TK/1 (Belum Kawin, 1 Tanggungan)</option>
-                <option value="TK/2">TK/2 (Belum Kawin, 2 Tanggungan)</option>
-                <option value="TK/3">TK/3 (Belum Kawin, 3 Tanggungan)</option>
-                <option value="K/0">K/0 (Kawin, 0 Tanggungan)</option>
-                <option value="K/1">K/1 (Kawin, 1 Tanggungan)</option>
-                <option value="K/2">K/2 (Kawin, 2 Tanggungan)</option>
-                <option value="K/3">K/3 (Kawin, 3 Tanggungan)</option>
-                <option value="K/I/0">K/I/0 (Kawin, Penghasilan Istri Digabung, 0 Tanggungan)</option>
-                <option value="K/I/1">K/I/1 (Kawin, Penghasilan Istri Digabung, 1 Tanggungan)</option>
-                <option value="K/I/2">K/I/2 (Kawin, Penghasilan Istri Digabung, 2 Tanggungan)</option>
-                <option value="K/I/3">K/I/3 (Kawin, Penghasilan Istri Digabung, 3 Tanggungan)</option>
-              </select>
-            </div>
 
-            <!-- Perbankan & Identitas Legal -->
-            <div class="form-group">
-              <label for="emp-bank-name">Bank Pembayaran <span class="required">*</span></label>
-              <select id="emp-bank-name" required class="glass-select">
-                <option value="BCA">BCA</option>
-                <option value="MANDIRI">MANDIRI</option>
-                <option value="BRI">BRI</option>
-                <option value="BNI">BNI</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="emp-bank-account">Nomor Rekening <span class="required">*</span></label>
-              <input type="text" id="emp-bank-account" required class="glass-input" placeholder="Hanya angka">
-            </div>
-            <div class="form-group">
-              <label for="emp-bpjs-ks-id">Nomor BPJS Kesehatan</label>
-              <input type="text" id="emp-bpjs-ks-id" class="glass-input" placeholder="ID BPJS KS 13 digit">
-            </div>
-            <div class="form-group">
-              <label for="emp-bpjs-tk-id">Nomor BPJS Ketenagakerjaan</label>
-              <input type="text" id="emp-bpjs-tk-id" class="glass-input" placeholder="ID BPJS TK 11 digit">
-            </div>
-
-            <!-- Gaji & Tunjangan -->
-            <div class="section-title span-2-col mt-3"><h4><i class="fa-solid fa-money-bill-wave"></i> Komponen Gaji Pokok & Tunjangan</h4></div>
-            <div class="form-group">
-              <label for="emp-basic-salary">Gaji Pokok (Basic Salary) <span class="required">*</span></label>
-              <input type="number" id="emp-basic-salary" min="1" required class="glass-input" placeholder="Gaji Pokok bulanan">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-fixed">Tunjangan Tetap <span class="required">*</span></label>
-              <input type="number" id="emp-allowance-fixed" min="0" required class="glass-input" placeholder="Tunjangan Tetap" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-position">Tunjangan Jabatan</label>
-              <input type="number" id="emp-allowance-position" min="0" class="glass-input" placeholder="Tunjangan Jabatan" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-family">Tunjangan Keluarga</label>
-              <input type="number" id="emp-allowance-family" min="0" class="glass-input" placeholder="Tunjangan Keluarga" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-communication">Tunjangan Komunikasi / Internet</label>
-              <input type="number" id="emp-allowance-communication" min="0" class="glass-input" placeholder="Tunjangan Komunikasi" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-transport">Tunjangan Transportasi (per hari hadir)</label>
-              <input type="number" id="emp-allowance-transport" min="0" class="glass-input" placeholder="Tunjangan Transport harian" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-meal">Tunjangan Makan (per hari hadir)</label>
-              <input type="number" id="emp-allowance-meal" min="0" class="glass-input" placeholder="Tunjangan Makan harian" value="0">
-            </div>
-
-            <!-- Potongan Tambahan -->
-            <div class="section-title span-2-col mt-3"><h4><i class="fa-solid fa-scissors"></i> Potongan Keanggotaan & Keuangan</h4></div>
-            <div class="form-group">
-              <label for="emp-deduction-cooperative">Potongan Koperasi Karyawan</label>
-              <input type="number" id="emp-deduction-cooperative" min="0" class="glass-input" placeholder="Potongan Koperasi" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-deduction-loan">Potongan Cicilan Pinjaman</label>
-              <input type="number" id="emp-deduction-loan" min="0" class="glass-input" placeholder="Potongan Pinjaman" value="0">
+          <!-- TAB 1: INFO DASAR -->
+          <div class="modal-tab-pane active" id="tab-info-dasar">
+            <div class="grid-2col">
+              <div class="form-group">
+                <label for="emp-nik">NIK Karyawan <span class="required">*</span></label>
+                <input type="text" id="emp-nik" required class="glass-input" placeholder="Contoh: NIK1001">
+              </div>
+              <div class="form-group">
+                <label for="emp-name">Nama Lengkap <span class="required">*</span></label>
+                <input type="text" id="emp-name" required class="glass-input" placeholder="Nama sesuai KTP">
+              </div>
+              <div class="form-group">
+                <label for="emp-email">Email Perusahaan <span class="required">*</span></label>
+                <input type="email" id="emp-email" required class="glass-input" placeholder="karyawan@perusahaan.com">
+              </div>
+              <div class="form-group">
+                <label for="emp-position">Jabatan <span class="required">*</span></label>
+                <input type="text" id="emp-position" required class="glass-input" placeholder="PM / Tech Lead / Staff">
+              </div>
+              <div class="form-group">
+                <label for="emp-department">Departemen / Divisi</label>
+                <input type="text" id="emp-department" class="glass-input" placeholder="Engineering / Finance / HR...">
+              </div>
+              <div class="form-group">
+                <label for="emp-hire-date">Tanggal Bergabung</label>
+                <input type="date" id="emp-hire-date" class="glass-input">
+              </div>
+              <div class="form-group">
+                <label for="emp-status">Status Karyawan <span class="required">*</span></label>
+                <select id="emp-status" required class="glass-select">
+                  <option value="PKWT">PKWT (Kontrak)</option>
+                  <option value="PKWTT">PKWTT (Tetap)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="emp-ptkp">Status Pajak PTKP <span class="required">*</span></label>
+                <select id="emp-ptkp" required class="glass-select">
+                  <option value="TK/0">TK/0 (Belum Kawin, 0 Tanggungan)</option>
+                  <option value="TK/1">TK/1 (Belum Kawin, 1 Tanggungan)</option>
+                  <option value="TK/2">TK/2 (Belum Kawin, 2 Tanggungan)</option>
+                  <option value="TK/3">TK/3 (Belum Kawin, 3 Tanggungan)</option>
+                  <option value="K/0">K/0 (Kawin, 0 Tanggungan)</option>
+                  <option value="K/1">K/1 (Kawin, 1 Tanggungan)</option>
+                  <option value="K/2">K/2 (Kawin, 2 Tanggungan)</option>
+                  <option value="K/3">K/3 (Kawin, 3 Tanggungan)</option>
+                  <option value="K/I/0">K/I/0 (Penghasilan Istri Digabung, 0 Tanggungan)</option>
+                  <option value="K/I/1">K/I/1 (Penghasilan Istri Digabung, 1 Tanggungan)</option>
+                  <option value="K/I/2">K/I/2 (Penghasilan Istri Digabung, 2 Tanggungan)</option>
+                  <option value="K/I/3">K/I/3 (Penghasilan Istri Digabung, 3 Tanggungan)</option>
+                </select>
+              </div>
+              <!-- Bank -->
+              <div class="section-title span-2-col mt-2"><h4><i class="fa-solid fa-building-columns"></i> Informasi Perbankan</h4></div>
+              <div class="form-group">
+                <label for="emp-bank-name">Bank Pembayaran <span class="required">*</span></label>
+                <select id="emp-bank-name" required class="glass-select">
+                  <option value="BCA">BCA</option>
+                  <option value="MANDIRI">MANDIRI</option>
+                  <option value="BRI">BRI</option>
+                  <option value="BNI">BNI</option>
+                  <option value="BSI">BSI (Bank Syariah Indonesia)</option>
+                  <option value="CIMB">CIMB Niaga</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="emp-bank-account">Nomor Rekening <span class="required">*</span></label>
+                <input type="text" id="emp-bank-account" required class="glass-input" placeholder="Hanya angka">
+              </div>
             </div>
           </div>
-        </div>
+
+          <!-- TAB 2: DATA PRIBADI -->
+          <div class="modal-tab-pane" id="tab-data-pribadi">
+            <div class="grid-2col">
+              <div class="section-title span-2-col"><h4><i class="fa-solid fa-fingerprint"></i> Identitas Legal</h4></div>
+              <div class="form-group">
+                <label for="emp-birthdate">Tanggal Lahir <span class="required">*</span></label>
+                <input type="date" id="emp-birthdate" required class="glass-input">
+                <small>Digunakan sebagai password PDF slip gaji</small>
+              </div>
+              <div class="form-group">
+                <label for="emp-nik-ktp">NIK KTP (16 Digit)</label>
+                <input type="text" id="emp-nik-ktp" class="glass-input" maxlength="16" placeholder="3174xxxxxxxxxxxxxx">
+              </div>
+              <div class="form-group">
+                <label for="emp-npwp">Nomor NPWP</label>
+                <input type="text" id="emp-npwp" class="glass-input" placeholder="xx.xxx.xxx.x-xxx.000">
+              </div>
+              <div class="form-group">
+                <label for="emp-phone">Nomor Telepon / HP</label>
+                <input type="text" id="emp-phone" class="glass-input" placeholder="+62 812-xxxx-xxxx">
+              </div>
+              <div class="form-group span-2-col">
+                <label for="emp-address">Alamat Lengkap</label>
+                <textarea id="emp-address" class="glass-input" rows="3" placeholder="Jl. ..., RT/RW, Kel., Kec., Kota, Kode Pos"></textarea>
+              </div>
+
+              <div class="section-title span-2-col mt-2"><h4><i class="fa-solid fa-image-portrait"></i> Foto & BPJS</h4></div>
+              <div class="form-group span-2-col">
+                <label for="emp-photo-url">URL Foto Profil</label>
+                <input type="text" id="emp-photo-url" class="glass-input" placeholder="https://... atau kosongkan untuk avatar otomatis">
+                <small>Foto akan tampil di tabel karyawan dan slip gaji. Kosongkan untuk avatar DiceBear otomatis.</small>
+              </div>
+              <div class="form-group">
+                <label for="emp-bpjs-ks-id">Nomor BPJS Kesehatan</label>
+                <input type="text" id="emp-bpjs-ks-id" class="glass-input" placeholder="13 digit">
+              </div>
+              <div class="form-group">
+                <label for="emp-bpjs-tk-id">Nomor BPJS Ketenagakerjaan</label>
+                <input type="text" id="emp-bpjs-tk-id" class="glass-input" placeholder="11 digit">
+              </div>
+
+              <div class="section-title span-2-col mt-2"><h4><i class="fa-solid fa-phone-volume"></i> Kontak Darurat</h4></div>
+              <div class="form-group">
+                <label for="emp-emergency-name">Nama Kontak Darurat</label>
+                <input type="text" id="emp-emergency-name" class="glass-input" placeholder="Nama kerabat/pasangan">
+              </div>
+              <div class="form-group">
+                <label for="emp-emergency-phone">Telepon Kontak Darurat</label>
+                <input type="text" id="emp-emergency-phone" class="glass-input" placeholder="+62 8xx-xxxx-xxxx">
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: KOMPONEN GAJI -->
+          <div class="modal-tab-pane" id="tab-komponen-gaji">
+            <div class="grid-2col">
+              <div class="section-title span-2-col"><h4><i class="fa-solid fa-sack-dollar"></i> Penghasilan Tetap</h4></div>
+              <div class="form-group">
+                <label for="emp-basic-salary">Gaji Pokok (Basic Salary) <span class="required">*</span></label>
+                <input type="number" id="emp-basic-salary" min="1" required class="glass-input" placeholder="Gaji Pokok bulanan">
+              </div>
+              <div class="form-group">
+                <label for="emp-allowance-fixed">Tunjangan Tetap</label>
+                <input type="number" id="emp-allowance-fixed" min="0" class="glass-input" placeholder="Tunjangan Tetap" value="0">
+              </div>
+              <div class="form-group">
+                <label for="emp-allowance-position">Tunjangan Jabatan</label>
+                <input type="number" id="emp-allowance-position" min="0" class="glass-input" placeholder="Tunjangan Jabatan" value="0">
+              </div>
+              <div class="form-group">
+                <label for="emp-allowance-family">Tunjangan Keluarga</label>
+                <input type="number" id="emp-allowance-family" min="0" class="glass-input" placeholder="Tunjangan Keluarga" value="0">
+              </div>
+              <div class="form-group">
+                <label for="emp-allowance-communication">Tunjangan Komunikasi / Internet</label>
+                <input type="number" id="emp-allowance-communication" min="0" class="glass-input" placeholder="Tunjangan Komunikasi" value="0">
+              </div>
+              <div class="form-group">
+                <label for="emp-allowance-transport">Tunjangan Transportasi (per hari hadir)</label>
+                <input type="number" id="emp-allowance-transport" min="0" class="glass-input" placeholder="Tunjangan Transport harian" value="0">
+              </div>
+              <div class="form-group">
+                <label for="emp-allowance-meal">Tunjangan Makan (per hari hadir)</label>
+                <input type="number" id="emp-allowance-meal" min="0" class="glass-input" placeholder="Tunjangan Makan harian" value="0">
+              </div>
+
+              <div class="section-title span-2-col mt-2"><h4><i class="fa-solid fa-scissors"></i> Potongan Keanggotaan &amp; Keuangan</h4></div>
+              <div class="form-group">
+                <label for="emp-deduction-cooperative">Potongan Koperasi Karyawan</label>
+                <input type="number" id="emp-deduction-cooperative" min="0" class="glass-input" placeholder="Potongan Koperasi" value="0">
+              </div>
+              <div class="form-group">
+                <label for="emp-deduction-loan">Potongan Cicilan Pinjaman</label>
+                <input type="number" id="emp-deduction-loan" min="0" class="glass-input" placeholder="Potongan Pinjaman" value="0">
+              </div>
+            </div>
+          </div>
+
+        </div><!-- end modal-body -->
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="btn-cancel-employee">Batal</button>
-          <button type="submit" class="btn btn-primary" id="btn-save-employee-db">Simpan Karyawan</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-employee-db"><i class="fa-solid fa-floppy-disk"></i> Simpan Karyawan</button>
         </div>
       </form>
     </div>
   </div>
+
 
   <!-- REJECTION NOTES MODAL -->
   <div class="modal-backdrop" id="modal-reject-notes">

@@ -209,12 +209,15 @@ app.get('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
 
 // Create employee
 app.post('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Specialist']), async (req, res) => {
-    const { 
+  const { 
     nik, name, position, status, ptkp, bank_name, bank_account, 
     bpjs_ks_id, bpjs_tk_id, basic_salary, allowance_fixed, 
     allowance_transport, allowance_meal, email, birth_date,
     allowance_position, allowance_family, allowance_communication,
-    deduction_cooperative, deduction_loan
+    deduction_cooperative, deduction_loan,
+    // New profile fields
+    nik_ktp, phone, address, photo_url, npwp, department, hire_date,
+    emergency_contact_name, emergency_contact_phone
   } = req.body;
 
   // Validation Rules (EPIC 7 Validation)
@@ -225,7 +228,7 @@ app.post('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Speci
   const validPTKP = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3', 'K/I/0', 'K/I/1', 'K/I/2', 'K/I/3'];
   let finalizedPTKP = ptkp;
   if (!validPTKP.includes(ptkp)) {
-    finalizedPTKP = 'TK/0'; // Default to TK/0 if invalid
+    finalizedPTKP = 'TK/0';
   }
 
   if (Number(basic_salary) <= 0) {
@@ -233,7 +236,6 @@ app.post('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Speci
   }
 
   try {
-    // Encrypt sensitive data
     const bank_account_encrypted = encrypt(bank_account);
     const basic_salary_encrypted = encrypt(basic_salary);
     const allowance_fixed_encrypted = encrypt(allowance_fixed);
@@ -249,28 +251,25 @@ app.post('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Speci
         bpjs_ks_id, bpjs_tk_id, basic_salary_encrypted, allowance_fixed_encrypted,
         allowance_transport, allowance_meal, email, birth_date,
         allowance_position_encrypted, allowance_family_encrypted, allowance_communication_encrypted,
-        deduction_cooperative_encrypted, deduction_loan_encrypted
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        deduction_cooperative_encrypted, deduction_loan_encrypted,
+        nik_ktp, phone, address, photo_url, npwp, department, hire_date,
+        emergency_contact_name, emergency_contact_phone
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       nik, name, position, status, finalizedPTKP, bank_name, bank_account_encrypted,
       bpjs_ks_id, bpjs_tk_id, basic_salary_encrypted, allowance_fixed_encrypted,
       allowance_transport || 0, allowance_meal || 0, email, birth_date,
       allowance_position_encrypted, allowance_family_encrypted, allowance_communication_encrypted,
-      deduction_cooperative_encrypted, deduction_loan_encrypted
+      deduction_cooperative_encrypted, deduction_loan_encrypted,
+      nik_ktp || null, phone || null, address || null, photo_url || null,
+      npwp || null, department || null, hire_date || null,
+      emergency_contact_name || null, emergency_contact_phone || null
     ]);
 
-    // Audit log
-    await logAudit(
-      req.userId, 
-      'CREATE_EMPLOYEE', 
-      null, 
-      JSON.stringify({ id: result.id, nik, name }), 
-      req
-    );
-
+    await logAudit(req.userId, 'CREATE_EMPLOYEE', null, JSON.stringify({ id: result.id, nik, name }), req);
     res.status(201).json({ id: result.id, message: 'Employee created successfully' });
   } catch (err) {
-    if (err.message.includes('UNIQUE constraint failed')) {
+    if (err.message.includes('UNIQUE constraint failed') || err.message.includes('unique')) {
       return res.status(400).json({ error: 'Karyawan dengan NIK tersebut sudah terdaftar!' });
     }
     res.status(500).json({ error: err.message });
@@ -284,7 +283,10 @@ app.put('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
     bpjs_ks_id, bpjs_tk_id, basic_salary, allowance_fixed, 
     allowance_transport, allowance_meal, email, birth_date,
     allowance_position, allowance_family, allowance_communication,
-    deduction_cooperative, deduction_loan
+    deduction_cooperative, deduction_loan,
+    // New profile fields
+    nik_ktp, phone, address, photo_url, npwp, department, hire_date,
+    emergency_contact_name, emergency_contact_phone
   } = req.body;
 
   // Validation Rules
@@ -325,7 +327,9 @@ app.put('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
         basic_salary_encrypted = ?, allowance_fixed_encrypted = ?,
         allowance_transport = ?, allowance_meal = ?, email = ?, birth_date = ?,
         allowance_position_encrypted = ?, allowance_family_encrypted = ?, allowance_communication_encrypted = ?,
-        deduction_cooperative_encrypted = ?, deduction_loan_encrypted = ?
+        deduction_cooperative_encrypted = ?, deduction_loan_encrypted = ?,
+        nik_ktp = ?, phone = ?, address = ?, photo_url = ?, npwp = ?,
+        department = ?, hire_date = ?, emergency_contact_name = ?, emergency_contact_phone = ?
       WHERE id = ?
     `, [
       nik || oldEmp.nik, 
@@ -348,18 +352,19 @@ app.put('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
       allowance_communication_encrypted,
       deduction_cooperative_encrypted,
       deduction_loan_encrypted,
+      nik_ktp !== undefined ? nik_ktp : oldEmp.nik_ktp,
+      phone !== undefined ? phone : oldEmp.phone,
+      address !== undefined ? address : oldEmp.address,
+      photo_url !== undefined ? photo_url : oldEmp.photo_url,
+      npwp !== undefined ? npwp : oldEmp.npwp,
+      department !== undefined ? department : oldEmp.department,
+      hire_date !== undefined ? hire_date : oldEmp.hire_date,
+      emergency_contact_name !== undefined ? emergency_contact_name : oldEmp.emergency_contact_name,
+      emergency_contact_phone !== undefined ? emergency_contact_phone : oldEmp.emergency_contact_phone,
       req.params.id
     ]);
 
-    // Audit log
-    await logAudit(
-      req.userId, 
-      'UPDATE_EMPLOYEE', 
-      JSON.stringify(decryptedOldEmp), 
-      JSON.stringify({ nik, name, basic_salary, bank_account }), 
-      req
-    );
-
+    await logAudit(req.userId, 'UPDATE_EMPLOYEE', JSON.stringify(decryptedOldEmp), JSON.stringify({ nik, name, basic_salary, bank_account }), req);
     res.json({ message: 'Employee updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -391,7 +396,64 @@ app.delete('/api/employees/:id', checkRole(['Super Admin / IT Tech']), async (re
 
 
 // ==========================================
-// 3. ATTENDANCE ENDPOINTS
+// 3. PAYSLIPS LIST ENDPOINT
+// ==========================================
+
+// Get list of all payslips (approved payroll details) - role-based
+app.get('/api/payroll/payslips', checkRole(['*']), async (req, res) => {
+  try {
+    const role = req.userRole;
+    const userId = req.userId;
+    const { period, search } = req.query;
+
+    let whereClauses = [`pr.status = 'APPROVED'`];
+    let params = [];
+    let paramIdx = 1;
+
+    // Karyawan can only see their own payslips
+    if (role === 'Karyawan') {
+      whereClauses.push(`e.nik = $${paramIdx++}`);
+      params.push(userId);
+    }
+
+    if (period) {
+      whereClauses.push(`pr.period = $${paramIdx++}`);
+      params.push(period);
+    }
+
+    if (search) {
+      whereClauses.push(`(e.name ILIKE $${paramIdx} OR e.nik ILIKE $${paramIdx})`);
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const whereStr = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    const rows = await dbAll(`
+      SELECT 
+        pd.id, pd.employee_id, pd.payroll_run_id, pd.payslip_path,
+        pd.basic_salary, pd.gross_salary, pd.net_salary, pd.pph21_amount,
+        pd.bpjs_ks_employee, pd.bpjs_tk_jht_employee, pd.bpjs_tk_jp_employee,
+        pd.allowance_position, pd.allowance_family, pd.allowance_communication,
+        pd.deduction_cooperative, pd.deduction_loan, pd.deduction_late, pd.deduction_absent,
+        pd.overtime_pay, pd.bonus, pd.insentif, pd.thr,
+        pr.period, pr.approved_at, pr.status as run_status,
+        e.nik, e.name, e.position, e.department, e.photo_url, e.bank_name
+      FROM payroll_details pd
+      JOIN payroll_runs pr ON pd.payroll_run_id = pr.id
+      JOIN employees e ON pd.employee_id = e.id
+      ${whereStr}
+      ORDER BY pr.period DESC, e.name ASC
+    `, params);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 4. ATTENDANCE ENDPOINTS
 // ==========================================
 
 // Get attendance records for period

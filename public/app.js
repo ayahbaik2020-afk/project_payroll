@@ -93,6 +93,8 @@ function refreshData() {
   } else if (activeView === 'payroll') {
     loadPayrollDetails();
     loadPayrollRuns();
+  } else if (activeView === 'payslips') {
+    loadPayslips();
   } else if (activeView === 'settings') {
     loadSystemSettings();
   } else if (activeView === 'audit-logs') {
@@ -333,6 +335,48 @@ function setupEventListeners() {
       loadPayrollDetails();
     }
   });
+
+  // Payslips list controls
+  document.getElementById('btn-load-payslips').addEventListener('click', () => {
+    loadPayslips();
+  });
+
+  document.getElementById('payslip-period').addEventListener('change', () => {
+    if (activeView === 'payslips') loadPayslips();
+  });
+
+  // Employee Modal Tab Buttons
+  const empTabs = document.querySelectorAll('.modal-tab-btn');
+  empTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      empTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      const targetTab = tab.getAttribute('data-emp-tab');
+      const panes = document.querySelectorAll('.modal-tab-pane');
+      panes.forEach(pane => {
+        if (pane.id === targetTab) {
+          pane.classList.add('active');
+        } else {
+          pane.classList.remove('active');
+        }
+      });
+    });
+  });
+
+  // Photo URL live preview
+  document.getElementById('emp-photo-url').addEventListener('input', (e) => {
+    const url = e.target.value.trim();
+    const preview = document.getElementById('emp-photo-preview');
+    if (url) {
+      preview.style.display = 'block';
+      preview.src = url;
+    } else {
+      const name = document.getElementById('emp-name').value.trim();
+      preview.style.display = 'block';
+      preview.src = `https://api.dicebear.com/8.x/personas/svg?seed=${encodeURIComponent(name || 'New')}`;
+    }
+  });
 }
 
 // Client CSV File processing
@@ -446,6 +490,10 @@ function switchView(viewName) {
       viewTitle.textContent = 'Pemrosesan Payroll Core Engine';
       viewSubtitle.textContent = 'Batch generate payroll bulanan dan integrasi alur persetujuan.';
       break;
+    case 'payslips':
+      viewTitle.textContent = 'Daftar Slip Gaji';
+      viewSubtitle.textContent = 'Lihat riwayat slip gaji resmi Anda dan unduh PDF aman terenkripsi.';
+      break;
     case 'settings':
       viewTitle.textContent = 'Konfigurasi Parameter Sistem';
       viewSubtitle.textContent = 'Atur profil kantor, aturan jam kerja, denda, regulasi BPJS dan PPh 21.';
@@ -468,16 +516,25 @@ function updateRoleVisuals() {
   const navEmployees = document.getElementById('nav-employees');
   const navAttendance = document.getElementById('nav-attendance');
   const navPayroll = document.getElementById('nav-payroll');
+  const navPayslips = document.getElementById('nav-payslips');
   const navSettings = document.getElementById('nav-settings');
   const navAudit = document.getElementById('nav-audit-logs');
+
+  if (navPayslips) {
+    navPayslips.style.display = 'flex'; // Visible to all roles
+  }
 
   // Karyawan has very restricted view (Self service only)
   if (currentRole === 'Karyawan') {
     navEmployees.style.display = 'none';
     navAttendance.style.display = 'none';
-    navPayroll.style.display = 'flex'; // Employee sees their own payslips here
+    navPayroll.style.display = 'none'; // Changed to none because payslips has its own menu now
     navSettings.style.display = 'none';
     navAudit.style.display = 'none';
+    
+    // Hide search field in Payslips view for Karyawan (they only see their own payslips)
+    const searchWrapper = document.getElementById('payslip-search-wrapper');
+    if (searchWrapper) searchWrapper.style.display = 'none';
   } else {
     // Other roles can see details
     navEmployees.style.display = (currentRole === 'Super Admin / IT Tech' || currentRole === 'HR Payroll Specialist') ? 'flex' : 'none';
@@ -485,6 +542,9 @@ function updateRoleVisuals() {
     navPayroll.style.display = 'flex';
     navSettings.style.display = (currentRole === 'Super Admin / IT Tech') ? 'flex' : 'none';
     navAudit.style.display = (currentRole === 'Super Admin / IT Tech') ? 'flex' : 'none';
+    
+    const searchWrapper = document.getElementById('payslip-search-wrapper');
+    if (searchWrapper) searchWrapper.style.display = 'block';
   }
 
   // Add Employee button
@@ -591,7 +651,7 @@ async function loadEmployees() {
     tbody.innerHTML = '';
 
     if (employeesList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" class="text-center">Tidak ada data karyawan.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center">Tidak ada data karyawan.</td></tr>`;
       return;
     }
 
@@ -606,14 +666,18 @@ async function loadEmployees() {
         actionButtons += `<button class="btn btn-danger btn-icon-only" onclick="deleteEmployee(${emp.id})" title="Hapus"><i class="fa-solid fa-trash"></i></button>`;
       }
 
+      const photoUrl = emp.photo_url || `https://api.dicebear.com/8.x/personas/svg?seed=${encodeURIComponent(emp.name)}`;
+      const photoImg = `<img src="${photoUrl}" alt="${emp.name}" class="emp-avatar" onerror="this.src='https://api.dicebear.com/8.x/personas/svg?seed=${encodeURIComponent(emp.name)}'">`;
+
       tr.innerHTML = `
+        <td>${photoImg}</td>
         <td><strong>${emp.nik}</strong></td>
         <td>${emp.name}</td>
         <td>${emp.position}</td>
+        <td>${emp.department || '-'}</td>
         <td><span class="badge ${emp.status === 'PKWTT' ? 'badge-success' : 'badge-warning'}">${emp.status}</span></td>
         <td>${emp.ptkp}</td>
         <td>${formatRupiah(emp.basic_salary)}</td>
-        <td>${formatRupiah(emp.allowance_fixed)}</td>
         <td>${emp.bank_name} - ${emp.bank_account}</td>
         <td>${actionButtons || '-'}</td>
       `;
@@ -630,6 +694,29 @@ function openEmployeeModal(title = 'Tambah Karyawan Baru') {
   document.getElementById('form-employee').reset();
   document.getElementById('emp-id').value = '';
   document.getElementById('emp-nik').disabled = false;
+  
+  // Reset modal tabs to first tab (Info Dasar)
+  const empTabs = document.querySelectorAll('.modal-tab-btn');
+  empTabs.forEach((t, idx) => {
+    if (idx === 0) t.classList.add('active');
+    else t.classList.remove('active');
+  });
+  const panes = document.querySelectorAll('.modal-tab-pane');
+  panes.forEach((pane, idx) => {
+    if (idx === 0) pane.classList.add('active');
+    else pane.classList.remove('active');
+  });
+
+  const avatarPreview = document.getElementById('emp-photo-preview');
+  const deptPreview = document.getElementById('emp-dept-preview');
+  if (avatarPreview) {
+    avatarPreview.style.display = 'none';
+    avatarPreview.src = '';
+  }
+  if (deptPreview) {
+    deptPreview.textContent = 'Karyawan Baru';
+  }
+
   document.getElementById('modal-employee').classList.add('active');
 }
 
@@ -659,7 +746,18 @@ async function saveEmployee() {
     bank_name: document.getElementById('emp-bank-name').value,
     bank_account: document.getElementById('emp-bank-account').value,
     bpjs_ks_id: document.getElementById('emp-bpjs-ks-id').value,
-    bpjs_tk_id: document.getElementById('emp-bpjs-tk-id').value
+    bpjs_tk_id: document.getElementById('emp-bpjs-tk-id').value,
+    
+    // New profile fields
+    nik_ktp: document.getElementById('emp-nik-ktp').value,
+    phone: document.getElementById('emp-phone').value,
+    address: document.getElementById('emp-address').value,
+    photo_url: document.getElementById('emp-photo-url').value,
+    npwp: document.getElementById('emp-npwp').value,
+    department: document.getElementById('emp-department').value,
+    hire_date: document.getElementById('emp-hire-date').value,
+    emergency_contact_name: document.getElementById('emp-emergency-name').value,
+    emergency_contact_phone: document.getElementById('emp-emergency-phone').value
   };
 
   const method = id ? 'PUT' : 'POST';
@@ -715,6 +813,39 @@ window.editEmployee = async function(id) {
     document.getElementById('emp-bank-account').value = emp.bank_account;
     document.getElementById('emp-bpjs-ks-id').value = emp.bpjs_ks_id || '';
     document.getElementById('emp-bpjs-tk-id').value = emp.bpjs_tk_id || '';
+
+    // Populate new profile fields
+    document.getElementById('emp-nik-ktp').value = emp.nik_ktp || '';
+    document.getElementById('emp-phone').value = emp.phone || '';
+    document.getElementById('emp-address').value = emp.address || '';
+    document.getElementById('emp-photo-url').value = emp.photo_url || '';
+    document.getElementById('emp-npwp').value = emp.npwp || '';
+    document.getElementById('emp-department').value = emp.department || '';
+    document.getElementById('emp-hire-date').value = emp.hire_date || '';
+    document.getElementById('emp-emergency-name').value = emp.emergency_contact_name || '';
+    document.getElementById('emp-emergency-phone').value = emp.emergency_contact_phone || '';
+
+    // Reset tabs to first tab (Info Dasar)
+    const empTabs = document.querySelectorAll('.modal-tab-btn');
+    empTabs.forEach((t, idx) => {
+      if (idx === 0) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+    const panes = document.querySelectorAll('.modal-tab-pane');
+    panes.forEach((pane, idx) => {
+      if (idx === 0) pane.classList.add('active');
+      else pane.classList.remove('active');
+    });
+
+    const avatarPreview = document.getElementById('emp-photo-preview');
+    const deptPreview = document.getElementById('emp-dept-preview');
+    if (avatarPreview) {
+      avatarPreview.style.display = 'block';
+      avatarPreview.src = emp.photo_url || `https://api.dicebear.com/8.x/personas/svg?seed=${encodeURIComponent(emp.name)}`;
+    }
+    if (deptPreview) {
+      deptPreview.textContent = emp.department || 'Master Data';
+    }
 
     openEmployeeModal('Edit Data Karyawan');
   } catch (err) {
@@ -1198,6 +1329,67 @@ async function loadAuditLogs() {
     });
   } catch (err) {
     showToast(err.message, 'error');
+  }
+}
+
+// ==========================================
+// 7. PAYSLIPS LIST VIEW CONTROLS
+// ==========================================
+async function loadPayslips() {
+  const period = document.getElementById('payslip-period').value;
+  const searchInput = document.getElementById('payslip-search');
+  const search = searchInput ? searchInput.value.trim() : '';
+  const tbody = document.getElementById('tbody-payslips');
+  
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center">Memuat slip gaji...</td></tr>';
+  
+  let url = `/api/payroll/payslips?period=${period}`;
+  if (search) {
+    url += `&search=${encodeURIComponent(search)}`;
+  }
+  
+  try {
+    const res = await fetch(url, { headers: getHeaders() });
+    if (!res.ok) throw new Error(await res.text());
+    
+    const data = await res.json();
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center">Tidak ada slip gaji yang disetujui untuk kriteria ini.</td></tr>';
+      return;
+    }
+    
+    data.forEach(row => {
+      const tr = document.createElement('tr');
+      const photoUrl = row.photo_url || `https://api.dicebear.com/8.x/personas/svg?seed=${encodeURIComponent(row.name)}`;
+      const photoImg = `<img src="${photoUrl}" alt="${row.name}" class="emp-avatar" onerror="this.src='https://api.dicebear.com/8.x/personas/svg?seed=${encodeURIComponent(row.name)}'">`;
+      
+      const totalBpjsAndPph = row.bpjs_ks_employee + row.bpjs_tk_jht_employee + row.bpjs_tk_jp_employee + row.pph21_amount;
+      const otherDeductions = (row.deduction_cooperative || 0) + (row.deduction_loan || 0) + (row.deduction_late || 0) + (row.deduction_absent || 0);
+      const totalDeductions = totalBpjsAndPph + otherDeductions;
+      
+      const approvedDateStr = row.approved_at ? new Date(row.approved_at).toLocaleDateString('id-ID') : '-';
+      
+      const downloadBtn = `<button class="payslip-download-btn" onclick="downloadPayslip(${row.employee_id}, '${row.period}')"><i class="fa-solid fa-file-pdf"></i> Unduh PDF</button>`;
+      
+      tr.innerHTML = `
+        <td>${photoImg}</td>
+        <td><strong>${row.nik}</strong></td>
+        <td>${row.name}</td>
+        <td>${row.position}</td>
+        <td><code>${row.period}</code></td>
+        <td>${formatRupiah(row.gross_salary)}</td>
+        <td><span style="color: var(--danger);">${formatRupiah(totalDeductions)}</span></td>
+        <td><span class="payslip-net-salary">${formatRupiah(row.net_salary)}</span></td>
+        <td><small>${approvedDateStr}</small></td>
+        <td>${downloadBtn}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="color: var(--danger);">${err.message}</td></tr>`;
   }
 }
 

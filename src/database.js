@@ -278,6 +278,18 @@ async function initDb() {
     await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS deduction_late DOUBLE PRECISION DEFAULT 0`);
     await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS deduction_absent DOUBLE PRECISION DEFAULT 0`);
 
+    // New employee profile columns (Phase 3)
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS nik_ktp VARCHAR(20)`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS address TEXT`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS npwp VARCHAR(25)`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS hire_date VARCHAR(20)`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(255)`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20)`);
+
+
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
