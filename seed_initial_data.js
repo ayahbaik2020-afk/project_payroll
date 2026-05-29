@@ -7,10 +7,10 @@ async function seed() {
 
   // Clear and seed within transaction
   await dbTransaction(async (tx) => {
-    await tx.run("DELETE FROM employees");
-    await tx.run("DELETE FROM attendance");
-    await tx.run("DELETE FROM payroll_runs");
     await tx.run("DELETE FROM payroll_details");
+    await tx.run("DELETE FROM payroll_runs");
+    await tx.run("DELETE FROM attendance");
+    await tx.run("DELETE FROM employees");
 
     const initialEmployees = [
       {
@@ -105,16 +105,27 @@ async function seed() {
       const basic_salary_encrypted = encrypt(emp.basic_salary.toString());
       const allowance_fixed_encrypted = encrypt(emp.allowance_fixed.toString());
 
+      // Seed realistic values for new allowance and deduction components
+      const allowance_position_encrypted = encrypt((emp.nik === 'NIK1002' ? '1200000' : '500000'));
+      const allowance_family_encrypted = encrypt((emp.nik === 'NIK1002' ? '500000' : '250000'));
+      const allowance_communication_encrypted = encrypt('150000');
+      const deduction_cooperative_encrypted = encrypt('50000');
+      const deduction_loan_encrypted = encrypt((emp.nik === 'NIK1001' ? '200000' : '0'));
+
       const result = await tx.run(`
         INSERT INTO employees (
           nik, name, position, status, ptkp, bank_name, bank_account_encrypted,
           bpjs_ks_id, bpjs_tk_id, basic_salary_encrypted, allowance_fixed_encrypted,
-          allowance_transport, allowance_meal, email, birth_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          allowance_transport, allowance_meal, email, birth_date,
+          allowance_position_encrypted, allowance_family_encrypted, allowance_communication_encrypted,
+          deduction_cooperative_encrypted, deduction_loan_encrypted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         emp.nik, emp.name, emp.position, emp.status, emp.ptkp, emp.bank_name, bank_account_encrypted,
         emp.bpjs_ks_id, emp.bpjs_tk_id, basic_salary_encrypted, allowance_fixed_encrypted,
-        emp.allowance_transport, emp.allowance_meal, emp.email, emp.birth_date
+        emp.allowance_transport, emp.allowance_meal, emp.email, emp.birth_date,
+        allowance_position_encrypted, allowance_family_encrypted, allowance_communication_encrypted,
+        deduction_cooperative_encrypted, deduction_loan_encrypted
       ]);
 
       let otFirst = 0;

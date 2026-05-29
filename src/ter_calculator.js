@@ -183,26 +183,41 @@ function calculateOvertime(basicSalary, fixedAllowance, hoursFirst, hoursNext) {
 }
 
 // 5. BPJS Calculations
-function calculateBPJS(basicSalary, fixedAllowance, jkkRiskRate = 0.0024) {
+function calculateBPJS(basicSalary, fixedAllowance, jkkRiskRate = 0.0024, settings = {}) {
   const baseSalary = basicSalary + fixedAllowance;
 
-  // BPJS Kesehatan limits: min 0, max Rp 12.000.000
-  const ksBase = Math.min(Math.max(baseSalary, 0), 12000000);
-  const ksEmployee = Math.round(ksBase * 0.01);
-  const ksCompany = Math.round(ksBase * 0.04);
+  // Read dynamic rates and ceilings from settings or use defaults
+  const ksEmployeeRate = settings.bpjs_ks_employee_rate !== undefined ? parseFloat(settings.bpjs_ks_employee_rate) : 0.01;
+  const ksCompanyRate = settings.bpjs_ks_company_rate !== undefined ? parseFloat(settings.bpjs_ks_company_rate) : 0.04;
+  const ksCeiling = settings.bpjs_ks_ceiling !== undefined ? parseFloat(settings.bpjs_ks_ceiling) : 12000000;
+
+  const jhtEmployeeRate = settings.bpjs_tk_jht_employee_rate !== undefined ? parseFloat(settings.bpjs_tk_jht_employee_rate) : 0.02;
+  const jhtCompanyRate = settings.bpjs_tk_jht_company_rate !== undefined ? parseFloat(settings.bpjs_tk_jht_company_rate) : 0.037;
+
+  const jpEmployeeRate = settings.bpjs_tk_jp_employee_rate !== undefined ? parseFloat(settings.bpjs_tk_jp_employee_rate) : 0.01;
+  const jpCompanyRate = settings.bpjs_tk_jp_company_rate !== undefined ? parseFloat(settings.bpjs_tk_jp_company_rate) : 0.02;
+  const jpCeiling = settings.bpjs_tk_jp_ceiling !== undefined ? parseFloat(settings.bpjs_tk_jp_ceiling) : 10024400;
+
+  const jkkRate = settings.bpjs_tk_jkk_rate !== undefined ? parseFloat(settings.bpjs_tk_jkk_rate) : (parseFloat(jkkRiskRate) || 0.0024);
+  const jkmRate = settings.bpjs_tk_jkm_rate !== undefined ? parseFloat(settings.bpjs_tk_jkm_rate) : 0.003;
+
+  // BPJS Kesehatan limits
+  const ksBase = Math.min(Math.max(baseSalary, 0), ksCeiling);
+  const ksEmployee = Math.round(ksBase * ksEmployeeRate);
+  const ksCompany = Math.round(ksBase * ksCompanyRate);
 
   // BPJS Ketenagakerjaan (JHT): base = baseSalary (no ceiling)
-  const jhtEmployee = Math.round(baseSalary * 0.02);
-  const jhtCompany = Math.round(baseSalary * 0.037);
+  const jhtEmployee = Math.round(baseSalary * jhtEmployeeRate);
+  const jhtCompany = Math.round(baseSalary * jhtCompanyRate);
 
-  // BPJS Ketenagakerjaan (JP): base limit max Rp 10.024.400
-  const jpBase = Math.min(Math.max(baseSalary, 0), 10024400);
-  const jpEmployee = Math.round(jpBase * 0.01);
-  const jpCompany = Math.round(jpBase * 0.02);
+  // BPJS Ketenagakerjaan (JP): base limit ceiling
+  const jpBase = Math.min(Math.max(baseSalary, 0), jpCeiling);
+  const jpEmployee = Math.round(jpBase * jpEmployeeRate);
+  const jpCompany = Math.round(jpBase * jpCompanyRate);
 
   // JKK and JKM: company only, based on baseSalary
-  const jkkCompany = Math.round(baseSalary * jkkRiskRate);
-  const jkmCompany = Math.round(baseSalary * 0.003);
+  const jkkCompany = Math.round(baseSalary * jkkRate);
+  const jkmCompany = Math.round(baseSalary * jkmRate);
 
   return {
     ksEmployee,
@@ -258,9 +273,21 @@ function calculatePasal17Tax(pkp) {
 }
 
 // 7. Standard Monthly Calculator (January - November)
-function calculateMonthlyPayroll(employee, attendance, jkkRiskRate = 0.0024) {
-  const basicSalary = employee.basicSalary;
-  const allowanceFixed = employee.allowanceFixed;
+function calculateMonthlyPayroll(employee, attendance, settings = {}) {
+  const basicSalary = employee.basicSalary || 0;
+  const allowanceFixed = employee.allowanceFixed || 0;
+  const allowancePosition = employee.allowancePosition || 0;
+  const allowanceFamily = employee.allowanceFamily || 0;
+  const allowanceCommunication = employee.allowanceCommunication || 0;
+
+  const deductionCooperative = employee.deductionCooperative || 0;
+  const deductionLoan = employee.deductionLoan || 0;
+
+  // Calculate late and absent fines dynamically
+  const lateFineFlat = settings.late_fine_flat !== undefined ? parseFloat(settings.late_fine_flat) : 15000;
+  const absentFineFlat = settings.absent_fine_flat !== undefined ? parseFloat(settings.absent_fine_flat) : 100000;
+  const deductionLate = (attendance.days_late || 0) * lateFineFlat;
+  const deductionAbsent = (attendance.days_absent || 0) * absentFineFlat;
 
   // Variable Allowances: based on actual present days
   const allowanceVariable = (attendance.days_present || 0) * ((employee.allowanceTransport || 0) + (employee.allowanceMeal || 0));
@@ -273,14 +300,15 @@ function calculateMonthlyPayroll(employee, attendance, jkkRiskRate = 0.0024) {
     attendance.overtime_hours_next || 0
   );
 
+  const jkkRiskRate = settings.bpjs_tk_jkk_rate !== undefined ? parseFloat(settings.bpjs_tk_jkk_rate) : 0.0024;
+
   // BPJS values
-  const bpjs = calculateBPJS(basicSalary, allowanceFixed, jkkRiskRate);
+  const bpjs = calculateBPJS(basicSalary, allowanceFixed, jkkRiskRate, settings);
 
   // Gross Salary calculation:
-  // Gross = Basic Salary + Fixed Allowances + Variable Allowances + Overtime Pay + Bonus + Insentif + THR 
-  // Taxable Gross adds company-paid BPJS Health (4%), JKK (0.24-1.74%), and JKM (0.3%).
-  // (JHT 3.7% and JP 2% paid by company are non-taxable fringe benefits).
-  const cashGross = basicSalary + allowanceFixed + allowanceVariable + overtime.totalOvertimePay + (attendance.bonus || 0) + (attendance.insentif || 0) + (attendance.thr || 0);
+  // Cash Gross = Basic + Fixed + Variable + Position + Family + Communication + Overtime + Bonus + Insentif + THR
+  const cashGross = basicSalary + allowanceFixed + allowanceVariable + allowancePosition + allowanceFamily + allowanceCommunication + overtime.totalOvertimePay + (attendance.bonus || 0) + (attendance.insentif || 0) + (attendance.thr || 0);
+  
   const taxablePremiumGross = bpjs.ksCompany + bpjs.jkkCompany + bpjs.jkmCompany;
   const taxGrossSalary = cashGross + taxablePremiumGross;
 
@@ -290,12 +318,16 @@ function calculateMonthlyPayroll(employee, attendance, jkkRiskRate = 0.0024) {
   const pph21Rate = getTERRate(terCategory, taxGrossSalary);
   const pph21Amount = Math.round(taxGrossSalary * pph21Rate);
 
-  // Net Salary = Cash Gross - BPJS Health employee - BPJS JHT employee - BPJS JP employee - PPh 21
-  const netSalary = cashGross - (bpjs.ksEmployee + bpjs.jhtEmployee + bpjs.jpEmployee) - pph21Amount;
+  // Net Salary = Cash Gross - BPJS Health employee - BPJS JHT employee - BPJS JP employee - PPh 21 - Other Deductions
+  const totalBpjsEmployee = bpjs.ksEmployee + bpjs.jhtEmployee + bpjs.jpEmployee;
+  const netSalary = cashGross - totalBpjsEmployee - pph21Amount - deductionCooperative - deductionLoan - deductionLate - deductionAbsent;
 
   return {
     basic_salary: basicSalary,
     allowance_fixed: allowanceFixed,
+    allowance_position: allowancePosition,
+    allowance_family: allowanceFamily,
+    allowance_communication: allowanceCommunication,
     allowance_variable: allowanceVariable,
     overtime_pay: overtime.totalOvertimePay,
     bonus: attendance.bonus || 0,
@@ -313,14 +345,18 @@ function calculateMonthlyPayroll(employee, attendance, jkkRiskRate = 0.0024) {
     bpjs_tk_jkm_company: bpjs.jkmCompany,
     pph21_rate: pph21Rate,
     pph21_amount: pph21Amount,
+    deduction_cooperative: deductionCooperative,
+    deduction_loan: deductionLoan,
+    deduction_late: deductionLate,
+    deduction_absent: deductionAbsent,
     net_salary: netSalary
   };
 }
 
 // 8. December Annualized Recalculation
-function calculateDecemberPayroll(employee, attendance, historyRecords, jkkRiskRate = 0.0024) {
-  // 1. Calculate December monthly values first (using standard calculations for cash fields)
-  const decCalc = calculateMonthlyPayroll(employee, attendance, jkkRiskRate);
+function calculateDecemberPayroll(employee, attendance, historyRecords, settings = {}) {
+  // 1. Calculate December monthly values first
+  const decCalc = calculateMonthlyPayroll(employee, attendance, settings);
 
   // 2. Sum up historical values (Jan - Nov)
   let sumGross = decCalc.taxable_gross; // Start with December taxable gross
@@ -330,8 +366,9 @@ function calculateDecemberPayroll(employee, attendance, historyRecords, jkkRiskR
 
   historyRecords.forEach(rec => {
     // Reconstruct gross for tax of past months
-    // Gross tax = basic + fixed + variable + overtime + bonus + insentif + thr + ks_company + jkk_company + jkm_company
-    const pastCashGross = rec.basic_salary + rec.allowance_fixed + rec.allowance_variable + rec.overtime_pay + rec.bonus + rec.insentif + rec.thr;
+    const pastCashGross = rec.basic_salary + rec.allowance_fixed + rec.allowance_variable + 
+      (rec.allowance_position || 0) + (rec.allowance_family || 0) + (rec.allowance_communication || 0) +
+      rec.overtime_pay + rec.bonus + rec.insentif + rec.thr;
     const pastTaxableGross = pastCashGross + rec.bpjs_ks_company + rec.bpjs_tk_jkk_company + rec.bpjs_tk_jkm_company;
     
     sumGross += pastTaxableGross;
@@ -341,7 +378,6 @@ function calculateDecemberPayroll(employee, attendance, historyRecords, jkkRiskR
   });
 
   // 3. Annualized Tax Calculations
-  // Total Gross Setahun
   const annualGross = sumGross;
   
   // Deductions:
@@ -366,8 +402,13 @@ function calculateDecemberPayroll(employee, attendance, historyRecords, jkkRiskR
   const decPph21 = annualPph21 - sumPph21Paid;
 
   // Recalculate December Net Salary based on the adjusted PPh 21
-  const cashGross = decCalc.basic_salary + decCalc.allowance_fixed + decCalc.allowance_variable + decCalc.overtime_pay + decCalc.bonus + decCalc.insentif + decCalc.thr;
-  const decNetSalary = cashGross - (decCalc.bpjs_ks_employee + decCalc.bpjs_tk_jht_employee + decCalc.bpjs_tk_jp_employee) - decPph21;
+  const cashGross = decCalc.basic_salary + decCalc.allowance_fixed + decCalc.allowance_variable + 
+    decCalc.allowance_position + decCalc.allowance_family + decCalc.allowance_communication +
+    decCalc.overtime_pay + decCalc.bonus + decCalc.insentif + decCalc.thr;
+  
+  const totalBpjsEmployee = decCalc.bpjs_ks_employee + decCalc.bpjs_tk_jht_employee + decCalc.bpjs_tk_jp_employee;
+  const decNetSalary = cashGross - totalBpjsEmployee - decPph21 - 
+    decCalc.deduction_cooperative - decCalc.deduction_loan - decCalc.deduction_late - decCalc.deduction_absent;
 
   return {
     ...decCalc,

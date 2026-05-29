@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +26,24 @@ const {
 const { logAudit } = require('../src/audit_logger');
 const { generateBankFile } = require('../src/bank_export');
 const { generatePayslipPdf } = require('../src/pdf_generator');
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+async function getSystemSettings() {
+  try {
+    const rows = await dbAll('SELECT key, value FROM system_settings');
+    const settings = {};
+    rows.forEach(r => {
+      settings[r.key] = r.value;
+    });
+    return settings;
+  } catch (err) {
+    console.error("Error fetching system settings:", err);
+    return {};
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -126,13 +145,23 @@ app.get('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Specia
         ...emp,
         bank_account: decrypt(emp.bank_account_encrypted),
         basic_salary: parseFloat(decrypt(emp.basic_salary_encrypted) || '0'),
-        allowance_fixed: parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0')
+        allowance_fixed: parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0'),
+        allowance_position: parseFloat(decrypt(emp.allowance_position_encrypted) || '0'),
+        allowance_family: parseFloat(decrypt(emp.allowance_family_encrypted) || '0'),
+        allowance_communication: parseFloat(decrypt(emp.allowance_communication_encrypted) || '0'),
+        deduction_cooperative: parseFloat(decrypt(emp.deduction_cooperative_encrypted) || '0'),
+        deduction_loan: parseFloat(decrypt(emp.deduction_loan_encrypted) || '0')
       };
       
       // Delete encrypted fields before sending to client
       delete decryptedEmp.bank_account_encrypted;
       delete decryptedEmp.basic_salary_encrypted;
       delete decryptedEmp.allowance_fixed_encrypted;
+      delete decryptedEmp.allowance_position_encrypted;
+      delete decryptedEmp.allowance_family_encrypted;
+      delete decryptedEmp.allowance_communication_encrypted;
+      delete decryptedEmp.deduction_cooperative_encrypted;
+      delete decryptedEmp.deduction_loan_encrypted;
 
       return decryptedEmp;
     });
@@ -157,10 +186,20 @@ app.get('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
     emp.bank_account = decrypt(emp.bank_account_encrypted);
     emp.basic_salary = parseFloat(decrypt(emp.basic_salary_encrypted) || '0');
     emp.allowance_fixed = parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0');
+    emp.allowance_position = parseFloat(decrypt(emp.allowance_position_encrypted) || '0');
+    emp.allowance_family = parseFloat(decrypt(emp.allowance_family_encrypted) || '0');
+    emp.allowance_communication = parseFloat(decrypt(emp.allowance_communication_encrypted) || '0');
+    emp.deduction_cooperative = parseFloat(decrypt(emp.deduction_cooperative_encrypted) || '0');
+    emp.deduction_loan = parseFloat(decrypt(emp.deduction_loan_encrypted) || '0');
     
     delete emp.bank_account_encrypted;
     delete emp.basic_salary_encrypted;
     delete emp.allowance_fixed_encrypted;
+    delete emp.allowance_position_encrypted;
+    delete emp.allowance_family_encrypted;
+    delete emp.allowance_communication_encrypted;
+    delete emp.deduction_cooperative_encrypted;
+    delete emp.deduction_loan_encrypted;
 
     res.json(emp);
   } catch (err) {
@@ -170,10 +209,12 @@ app.get('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
 
 // Create employee
 app.post('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Specialist']), async (req, res) => {
-  const { 
+    const { 
     nik, name, position, status, ptkp, bank_name, bank_account, 
     bpjs_ks_id, bpjs_tk_id, basic_salary, allowance_fixed, 
-    allowance_transport, allowance_meal, email, birth_date 
+    allowance_transport, allowance_meal, email, birth_date,
+    allowance_position, allowance_family, allowance_communication,
+    deduction_cooperative, deduction_loan
   } = req.body;
 
   // Validation Rules (EPIC 7 Validation)
@@ -196,17 +237,26 @@ app.post('/api/employees', checkRole(['Super Admin / IT Tech', 'HR Payroll Speci
     const bank_account_encrypted = encrypt(bank_account);
     const basic_salary_encrypted = encrypt(basic_salary);
     const allowance_fixed_encrypted = encrypt(allowance_fixed);
+    const allowance_position_encrypted = encrypt(allowance_position || '0');
+    const allowance_family_encrypted = encrypt(allowance_family || '0');
+    const allowance_communication_encrypted = encrypt(allowance_communication || '0');
+    const deduction_cooperative_encrypted = encrypt(deduction_cooperative || '0');
+    const deduction_loan_encrypted = encrypt(deduction_loan || '0');
 
     const result = await dbRun(`
       INSERT INTO employees (
         nik, name, position, status, ptkp, bank_name, bank_account_encrypted,
         bpjs_ks_id, bpjs_tk_id, basic_salary_encrypted, allowance_fixed_encrypted,
-        allowance_transport, allowance_meal, email, birth_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        allowance_transport, allowance_meal, email, birth_date,
+        allowance_position_encrypted, allowance_family_encrypted, allowance_communication_encrypted,
+        deduction_cooperative_encrypted, deduction_loan_encrypted
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       nik, name, position, status, finalizedPTKP, bank_name, bank_account_encrypted,
       bpjs_ks_id, bpjs_tk_id, basic_salary_encrypted, allowance_fixed_encrypted,
-      allowance_transport || 0, allowance_meal || 0, email, birth_date
+      allowance_transport || 0, allowance_meal || 0, email, birth_date,
+      allowance_position_encrypted, allowance_family_encrypted, allowance_communication_encrypted,
+      deduction_cooperative_encrypted, deduction_loan_encrypted
     ]);
 
     // Audit log
@@ -232,7 +282,9 @@ app.put('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
   const { 
     nik, name, position, status, ptkp, bank_name, bank_account, 
     bpjs_ks_id, bpjs_tk_id, basic_salary, allowance_fixed, 
-    allowance_transport, allowance_meal, email, birth_date 
+    allowance_transport, allowance_meal, email, birth_date,
+    allowance_position, allowance_family, allowance_communication,
+    deduction_cooperative, deduction_loan
   } = req.body;
 
   // Validation Rules
@@ -260,13 +312,20 @@ app.put('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
     const bank_account_encrypted = bank_account ? encrypt(bank_account) : oldEmp.bank_account_encrypted;
     const basic_salary_encrypted = basic_salary !== undefined ? encrypt(basic_salary) : oldEmp.basic_salary_encrypted;
     const allowance_fixed_encrypted = allowance_fixed !== undefined ? encrypt(allowance_fixed) : oldEmp.allowance_fixed_encrypted;
+    const allowance_position_encrypted = allowance_position !== undefined ? encrypt(allowance_position) : oldEmp.allowance_position_encrypted;
+    const allowance_family_encrypted = allowance_family !== undefined ? encrypt(allowance_family) : oldEmp.allowance_family_encrypted;
+    const allowance_communication_encrypted = allowance_communication !== undefined ? encrypt(allowance_communication) : oldEmp.allowance_communication_encrypted;
+    const deduction_cooperative_encrypted = deduction_cooperative !== undefined ? encrypt(deduction_cooperative) : oldEmp.deduction_cooperative_encrypted;
+    const deduction_loan_encrypted = deduction_loan !== undefined ? encrypt(deduction_loan) : oldEmp.deduction_loan_encrypted;
 
     await dbRun(`
       UPDATE employees SET
         nik = ?, name = ?, position = ?, status = ?, ptkp = ?, bank_name = ?,
         bank_account_encrypted = ?, bpjs_ks_id = ?, bpjs_tk_id = ?, 
         basic_salary_encrypted = ?, allowance_fixed_encrypted = ?,
-        allowance_transport = ?, allowance_meal = ?, email = ?, birth_date = ?
+        allowance_transport = ?, allowance_meal = ?, email = ?, birth_date = ?,
+        allowance_position_encrypted = ?, allowance_family_encrypted = ?, allowance_communication_encrypted = ?,
+        deduction_cooperative_encrypted = ?, deduction_loan_encrypted = ?
       WHERE id = ?
     `, [
       nik || oldEmp.nik, 
@@ -284,6 +343,11 @@ app.put('/api/employees/:id', checkRole(['Super Admin / IT Tech', 'HR Payroll Sp
       allowance_meal !== undefined ? allowance_meal : oldEmp.allowance_meal, 
       email || oldEmp.email, 
       birth_date || oldEmp.birth_date,
+      allowance_position_encrypted,
+      allowance_family_encrypted,
+      allowance_communication_encrypted,
+      deduction_cooperative_encrypted,
+      deduction_loan_encrypted,
       req.params.id
     ]);
 
@@ -452,6 +516,7 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
       const isDecember = period.endsWith('-12');
 
       // 4. Batch Calculate for each employee
+      const settings = await getSystemSettings();
       for (const emp of employees) {
         // Decrypt credentials
         const employeeData = {
@@ -465,7 +530,12 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
           allowanceFixed: parseFloat(decrypt(emp.allowance_fixed_encrypted) || '0'),
           allowanceTransport: emp.allowance_transport || 0,
           allowanceMeal: emp.allowance_meal || 0,
-          birth_date: emp.birth_date
+          birth_date: emp.birth_date,
+          allowancePosition: parseFloat(decrypt(emp.allowance_position_encrypted) || '0'),
+          allowanceFamily: parseFloat(decrypt(emp.allowance_family_encrypted) || '0'),
+          allowanceCommunication: parseFloat(decrypt(emp.allowance_communication_encrypted) || '0'),
+          deductionCooperative: parseFloat(decrypt(emp.deduction_cooperative_encrypted) || '0'),
+          deductionLoan: parseFloat(decrypt(emp.deduction_loan_encrypted) || '0')
         };
 
         // Fetch attendance
@@ -499,10 +569,10 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
               AND pr.status = 'APPROVED'
           `, [emp.id, `${yearPrefix}-%`, period]);
 
-          calcResult = calculateDecemberPayroll(employeeData, att, history);
+          calcResult = calculateDecemberPayroll(employeeData, att, history, settings);
         } else {
           // Standard Month
-          calcResult = calculateMonthlyPayroll(employeeData, att);
+          calcResult = calculateMonthlyPayroll(employeeData, att, settings);
         }
 
         // Save calculation results
@@ -512,8 +582,10 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
             overtime_pay, bonus, insentif, thr, gross_salary,
             bpjs_ks_employee, bpjs_ks_company, bpjs_tk_jht_employee, bpjs_tk_jht_company,
             bpjs_tk_jp_employee, bpjs_tk_jp_company, bpjs_tk_jkk_company, bpjs_tk_jkm_company,
-            pph21_rate, pph21_amount, net_salary
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            pph21_rate, pph21_amount, net_salary,
+            allowance_position, allowance_family, allowance_communication,
+            deduction_cooperative, deduction_loan, deduction_late, deduction_absent
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           runId, emp.id, 
           calcResult.basic_salary, calcResult.allowance_fixed, calcResult.allowance_variable,
@@ -522,7 +594,9 @@ app.post('/api/payroll/runs/generate', checkRole(['Super Admin / IT Tech', 'HR P
           calcResult.bpjs_tk_jht_employee, calcResult.bpjs_tk_jht_company,
           calcResult.bpjs_tk_jp_employee, calcResult.bpjs_tk_jp_company,
           calcResult.bpjs_tk_jkk_company, calcResult.bpjs_tk_jkm_company,
-          calcResult.pph21_rate, calcResult.pph21_amount, calcResult.net_salary
+          calcResult.pph21_rate, calcResult.pph21_amount, calcResult.net_salary,
+          calcResult.allowance_position, calcResult.allowance_family, calcResult.allowance_communication,
+          calcResult.deduction_cooperative, calcResult.deduction_loan, calcResult.deduction_late, calcResult.deduction_absent
         ]);
       }
     });
@@ -590,6 +664,7 @@ app.post('/api/payroll/runs/approve', checkRole(['Super Admin / IT Tech', 'Manag
     // Get all calculated details
     const details = await dbAll('SELECT pd.*, e.nik, e.name, e.position, e.ptkp, e.status, e.bank_name, e.bank_account_encrypted, e.birth_date, e.email FROM payroll_details pd JOIN employees e ON pd.employee_id = e.id WHERE pd.payroll_run_id = ?', [run.id]);
 
+    const settings = await getSystemSettings();
     for (const d of details) {
       const employeeInfo = {
         nik: d.nik,
@@ -611,7 +686,7 @@ app.post('/api/payroll/runs/approve', checkRole(['Super Admin / IT Tech', 'Manag
       const slipPath = path.join(PAYSLIPS_DIR, period, slipFilename);
 
       // Generate secure encrypted PDF
-      await generatePayslipPdf(employeeInfo, detailInfo, period, slipPath);
+      await generatePayslipPdf(employeeInfo, detailInfo, period, slipPath, settings);
 
       // Update path in database
       const dbRelativePath = `/api/payroll/payslip/${d.employee_id}/${period}`;
@@ -771,6 +846,150 @@ app.get('/api/audit-logs', checkRole(['Super Admin / IT Tech']), async (req, res
   try {
     const rows = await dbAll('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 500');
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 7. AUTHENTICATION & LOGIN ENDPOINTS
+// ==========================================
+
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username dan Password wajib diisi!' });
+  }
+
+  try {
+    const user = await dbGet('SELECT * FROM users WHERE username = ?', [username]);
+    if (!user) {
+      return res.status(401).json({ error: 'Username atau Password salah!' });
+    }
+
+    const hash = hashPassword(password);
+    if (user.password_hash !== hash) {
+      return res.status(401).json({ error: 'Username atau Password salah!' });
+    }
+
+    let nik = null;
+    if (user.role === 'Karyawan') {
+      const emp = await dbGet('SELECT nik FROM employees WHERE email = ? OR name = ?', [user.email, user.name]);
+      if (emp) {
+        nik = emp.nik;
+      }
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+        nik: nik
+      },
+      token: 'mock-session-token-' + user.username + '-' + Date.now()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 8. SYSTEM SETTINGS ENDPOINTS
+// ==========================================
+
+app.get('/api/settings', checkRole(['Super Admin / IT Tech', 'HR Payroll Specialist', 'Finance / Accounting', 'Management / Direksi']), async (req, res) => {
+  try {
+    const settings = await getSystemSettings();
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings', checkRole(['Super Admin / IT Tech']), async (req, res) => {
+  const settingsData = req.body;
+  if (!settingsData || typeof settingsData !== 'object') {
+    return res.status(400).json({ error: 'Payload tidak valid.' });
+  }
+
+  try {
+    await dbTransaction(async (tx) => {
+      for (const [key, value] of Object.entries(settingsData)) {
+        await tx.run(`
+          INSERT INTO system_settings (key, value, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT (key) DO UPDATE SET
+            value = EXCLUDED.value,
+            updated_at = CURRENT_TIMESTAMP
+        `, [key, String(value)]);
+      }
+    });
+
+    await logAudit(req.userId, 'UPDATE_SETTINGS', null, `Updated settings: ${Object.keys(settingsData).join(', ')}`, req);
+    res.json({ message: 'Pengaturan sistem berhasil disimpan.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 9. ATTENDANCE IMPORT ENDPOINT
+// ==========================================
+
+app.post('/api/attendance/import', checkRole(['Super Admin / IT Tech', 'HR Payroll Specialist']), async (req, res) => {
+  const { period, records } = req.body;
+  if (!period || !records || !Array.isArray(records)) {
+    return res.status(400).json({ error: 'Invalid payload. Period and records array are required.' });
+  }
+
+  try {
+    const run = await dbGet('SELECT status FROM payroll_runs WHERE period = ?', [period]);
+    if (run && run.status === 'APPROVED') {
+      return res.status(400).json({ error: `Cannot import. Payroll for ${period} is already approved and locked.` });
+    }
+
+    let importedCount = 0;
+    await dbTransaction(async (tx) => {
+      for (const rec of records) {
+        if (!rec.nik) continue;
+
+        const emp = await tx.get('SELECT id FROM employees WHERE nik = ?', [rec.nik]);
+        if (!emp) continue;
+
+        await tx.run(`
+          INSERT INTO attendance (
+            employee_id, period, days_present, days_late, days_absent,
+            overtime_hours_first, overtime_hours_next, bonus, insentif, thr
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(employee_id, period) DO UPDATE SET
+            days_present = excluded.days_present,
+            days_late = excluded.days_late,
+            days_absent = excluded.days_absent,
+            overtime_hours_first = excluded.overtime_hours_first,
+            overtime_hours_next = excluded.overtime_hours_next,
+            bonus = excluded.bonus,
+            insentif = excluded.insentif,
+            thr = excluded.thr
+        `, [
+          emp.id, period,
+          rec.days_present || 0,
+          rec.days_late || 0,
+          rec.days_absent || 0,
+          rec.overtime_hours_first || 0,
+          rec.overtime_hours_next || 0,
+          rec.bonus || 0,
+          rec.insentif || 0,
+          rec.thr || 0
+        ]);
+        importedCount++;
+      }
+    });
+
+    await logAudit(req.userId, 'IMPORT_ATTENDANCE_CSV', null, `Imported ${importedCount} attendance records from CSV for period ${period}`, req);
+    res.json({ message: `Berhasil mengimpor ${importedCount} data kehadiran.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

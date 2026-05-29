@@ -64,10 +64,11 @@ function convertParams(sql) {
 const dbRun = async (sql, params = []) => {
   let pgSql = convertParams(sql);
   
-  // Automate RETURNING id for PG inserts to mimic SQLite lastID
+  // Automate RETURNING id for PG inserts to mimic SQLite lastID, except for system_settings table
   const isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
   const hasReturning = pgSql.toUpperCase().includes('RETURNING');
-  if (isInsert && !hasReturning) {
+  const isSystemSettings = pgSql.toLowerCase().includes('system_settings');
+  if (isInsert && !hasReturning && !isSystemSettings) {
     pgSql += ' RETURNING id';
   }
 
@@ -101,7 +102,8 @@ async function dbTransaction(fn) {
       let pgSql = convertParams(sql);
       const isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
       const hasReturning = pgSql.toUpperCase().includes('RETURNING');
-      if (isInsert && !hasReturning) {
+      const isSystemSettings = pgSql.toLowerCase().includes('system_settings');
+      if (isInsert && !hasReturning && !isSystemSettings) {
         pgSql += ' RETURNING id';
       }
       const res = await client.query(pgSql, params);
@@ -238,6 +240,43 @@ async function initDb() {
         new_value TEXT
       )
     `);
+
+    // 6. Users Table (Authentication)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(100) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 7. System Settings Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Apply incremental ALTER DDL queries to support existing Supabase configurations
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance_position_encrypted TEXT`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance_family_encrypted TEXT`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS allowance_communication_encrypted TEXT`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS deduction_cooperative_encrypted TEXT`);
+    await client.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS deduction_loan_encrypted TEXT`);
+
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS allowance_position DOUBLE PRECISION DEFAULT 0`);
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS allowance_family DOUBLE PRECISION DEFAULT 0`);
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS allowance_communication DOUBLE PRECISION DEFAULT 0`);
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS deduction_cooperative DOUBLE PRECISION DEFAULT 0`);
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS deduction_loan DOUBLE PRECISION DEFAULT 0`);
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS deduction_late DOUBLE PRECISION DEFAULT 0`);
+    await client.query(`ALTER TABLE payroll_details ADD COLUMN IF NOT EXISTS deduction_absent DOUBLE PRECISION DEFAULT 0`);
 
     await client.query('COMMIT');
   } catch (err) {

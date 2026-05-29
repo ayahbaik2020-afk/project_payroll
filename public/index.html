@@ -17,7 +17,35 @@
   <div class="glow-bg glow-1"></div>
   <div class="glow-bg glow-2"></div>
 
-  <div class="app-container">
+  <!-- LOGIN PAGE -->
+  <div id="login-view" class="login-wrapper">
+    <div class="login-card glass-panel">
+      <div class="login-header">
+        <div class="login-logo">
+          <i class="fa-solid fa-calculator-combined"></i>
+        </div>
+        <h2>PAYROLL<span>CORE</span></h2>
+        <p>Sistem Informasi Penggajian Karyawan Kepatuhan 100%</p>
+      </div>
+      <form id="form-login">
+        <div class="form-group">
+          <label for="login-username"><i class="fa-solid fa-user"></i> Username</label>
+          <input type="text" id="login-username" class="glass-input" required placeholder="Masukkan username (admin/hr/finance/management/andi)">
+        </div>
+        <div class="form-group">
+          <label for="login-password"><i class="fa-solid fa-lock"></i> Kata Sandi</label>
+          <input type="password" id="login-password" class="glass-input" required placeholder="Masukkan kata sandi">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block"><i class="fa-solid fa-right-to-bracket"></i> Masuk Sistem</button>
+      </form>
+      <div class="login-footer">
+        <p>Info Uji Coba: Password default adalah <strong>password123</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="app-container" id="app-view" style="display: none;">
     
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
@@ -35,14 +63,17 @@
         <a href="#dashboard" class="nav-item active" data-view="dashboard">
           <i class="fa-solid fa-chart-line"></i> <span>Dashboard</span>
         </a>
-        <a href="#employees" class="nav-item" data-view="employees">
+        <a href="#employees" class="nav-item" data-view="employees" id="nav-employees">
           <i class="fa-solid fa-users-gear"></i> <span>Data Karyawan</span>
         </a>
-        <a href="#attendance" class="nav-item" data-view="attendance">
+        <a href="#attendance" class="nav-item" data-view="attendance" id="nav-attendance">
           <i class="fa-solid fa-calendar-check"></i> <span>Kehadiran & Lembur</span>
         </a>
-        <a href="#payroll" class="nav-item" data-view="payroll">
+        <a href="#payroll" class="nav-item" data-view="payroll" id="nav-payroll">
           <i class="fa-solid fa-file-invoice-dollar"></i> <span>Proses Payroll</span>
+        </a>
+        <a href="#settings" class="nav-item" data-view="settings" id="nav-settings">
+          <i class="fa-solid fa-gears"></i> <span>Pengaturan Sistem</span>
         </a>
         <a href="#audit-logs" class="nav-item" data-view="audit-logs" id="nav-audit-logs">
           <i class="fa-solid fa-shield-halved"></i> <span>Audit Trail</span>
@@ -53,9 +84,10 @@
         <div class="current-user-card">
           <i class="fa-solid fa-circle-user avatar"></i>
           <div class="user-info">
-            <h4 id="user-display-name">HR Specialist</h4>
-            <span id="user-display-role">HR Specialist</span>
+            <h4 id="user-display-name">Guest</h4>
+            <span id="user-display-role">Guest</span>
           </div>
+          <button id="btn-logout" class="btn-logout-icon" title="Keluar"><i class="fa-solid fa-power-off"></i></button>
         </div>
       </div>
     </aside>
@@ -68,26 +100,6 @@
         <div class="page-title">
           <h1 id="view-title">Dashboard Utama</h1>
           <p id="view-subtitle">Ikhtisar data operasional dan perhitungan gaji terbaru.</p>
-        </div>
-        
-        <div class="topbar-actions">
-          <!-- Role Switcher (Simulator) -->
-          <div class="role-selector-wrapper">
-            <label for="role-simulator"><i class="fa-solid fa-key"></i> Mode Akses:</label>
-            <select id="role-simulator" class="glass-select">
-              <option value="Super Admin / IT Tech">Super Admin / IT Tech</option>
-              <option value="HR Payroll Specialist" selected>HR Payroll Specialist</option>
-              <option value="Finance / Accounting">Finance / Accounting</option>
-              <option value="Management / Direksi">Management / Direksi</option>
-              <option value="Karyawan">Karyawan (Pegawai Mandiri)</option>
-            </select>
-          </div>
-
-          <!-- Active User Input for Karyawan Simulator -->
-          <div class="employee-id-simulator-wrapper" id="employee-simulator-box" style="display:none;">
-            <label for="employee-nik-simulator">NIK Pegawai:</label>
-            <input type="text" id="employee-nik-simulator" class="glass-input" placeholder="Masukkan NIK" value="NIK1001">
-          </div>
         </div>
       </header>
 
@@ -133,7 +145,6 @@
               <div class="panel-body">
                 <div class="chart-simulation-container">
                   <div class="chart-bar-container" id="trend-bars">
-                    <!-- Bars injected dynamically -->
                     <div class="no-data-placeholder">Belum ada pengeluaran payroll yang disetujui.</div>
                   </div>
                 </div>
@@ -170,7 +181,7 @@
             </div>
           </div>
         </section>
-
+        
         <!-- EMPLOYEES VIEW -->
         <section id="view-employees" class="content-view">
           <div class="panel-card glass-panel">
@@ -204,12 +215,15 @@
         <!-- ATTENDANCE VIEW -->
         <section id="view-attendance" class="content-view">
           <div class="panel-card glass-panel">
-            <div class="panel-header table-header-actions">
+            <div class="panel-header table-header-actions flex-wrap gap-2">
               <div class="filter-group">
                 <label for="attendance-period">Pilih Periode:</label>
                 <input type="month" id="attendance-period" class="glass-input-small" value="2026-05">
               </div>
-              <button class="btn btn-secondary" id="btn-load-attendance"><i class="fa-solid fa-arrows-rotate"></i> Sinkronisasi Data Kehadiran</button>
+              <div class="action-buttons flex gap-2">
+                <button class="btn btn-secondary" id="btn-import-csv-trigger"><i class="fa-solid fa-file-excel"></i> Impor CSV Fingerprint</button>
+                <button class="btn btn-secondary" id="btn-load-attendance"><i class="fa-solid fa-arrows-rotate"></i> Sinkronisasi Data Kehadiran</button>
+              </div>
             </div>
             <div class="panel-body table-responsive">
               <form id="form-attendance">
@@ -220,8 +234,8 @@
                       <th>Nama Karyawan</th>
                       <th>Jabatan</th>
                       <th>Hari Kerja</th>
-                      <th>Terlambat</th>
-                      <th>Absen (Tanpa Alasan)</th>
+                      <th>Terlambat (Hari)</th>
+                      <th>Absen (Mangkir)</th>
                       <th>Lembur Jam 1 (1.5x)</th>
                       <th>Lembur Jam Seterusnya (2x)</th>
                       <th>Bonus (Rp)</th>
@@ -300,7 +314,7 @@
             <!-- Right panel: Calculation outputs -->
             <div class="panel-card glass-panel span-2-col scroll-y">
               <div class="panel-header">
-                <h3><i class="fa-solid fa-list-check"></i> Rincian Perhitungan Kompensasi & Potongan Pajak</h3>
+                <h3><i class="fa-solid fa-list-check"></i> Rincian Perhitungan Kompensasi & Potongan Gaji</h3>
               </div>
               <div class="panel-body table-responsive">
                 <table class="glass-table-compact" id="table-payroll-details">
@@ -313,20 +327,180 @@
                       <th>BPJS JHT (2%)</th>
                       <th>BPJS JP (1%)</th>
                       <th>PPh 21 Pajak</th>
-                      <th>Potongan Gaji</th>
+                      <th>Tunj. Lain</th>
+                      <th>Pot. Lain</th>
                       <th>Gaji Bersih (Net)</th>
                       <th>Slip Gaji</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td colspan="10" class="text-center">Silakan jalankan atau pilih periode payroll untuk melihat rincian kalkulasi.</td>
+                      <td colspan="11" class="text-center">Silakan jalankan atau pilih periode payroll untuk melihat rincian kalkulasi.</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
+          </div>
+        </section>
+
+        <!-- SYSTEM SETTINGS VIEW -->
+        <section id="view-settings" class="content-view">
+          <div class="settings-layout">
+            
+            <!-- Tab Menu Settings -->
+            <div class="settings-sidebar glass-panel">
+              <button class="settings-tab-btn active" data-tab="company-profile"><i class="fa-solid fa-building"></i> Profil Perusahaan</button>
+              <button class="settings-tab-btn" data-tab="work-hours"><i class="fa-solid fa-clock"></i> Jam Kerja & Denda</button>
+              <button class="settings-tab-btn" data-tab="regulation-rates"><i class="fa-solid fa-scale-balanced"></i> Tarif Regulasi (BPJS/Pajak)</button>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="settings-content glass-panel">
+              <form id="form-settings">
+                
+                <!-- TAB: PROFIL PERUSAHAAN -->
+                <div class="settings-tab-pane active" id="tab-company-profile">
+                  <h3>Profil Perusahaan</h3>
+                  <p class="section-desc">Informasi yang akan dicetak pada slip gaji karyawan.</p>
+                  
+                  <div class="grid-2col mt-4">
+                    <div class="form-group">
+                      <label for="set-company-name">Nama Perusahaan</label>
+                      <input type="text" id="set-company-name" class="glass-input" required placeholder="PT Solusi Utama Indonesia">
+                    </div>
+                    <div class="form-group">
+                      <label for="set-company-logo">Logo Perusahaan (Image URL)</label>
+                      <input type="text" id="set-company-logo" class="glass-input" placeholder="Masukkan URL Logo">
+                    </div>
+                    <div class="form-group span-2-col">
+                      <label for="set-company-address">Alamat Kantor</label>
+                      <textarea id="set-company-address" class="glass-input" rows="3" required placeholder="Alamat lengkap perusahaan..."></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-company-signatory-name">Nama Penandatangan Slip</label>
+                      <input type="text" id="set-company-signatory-name" class="glass-input" required placeholder="Dewi Rahayu">
+                    </div>
+                    <div class="form-group">
+                      <label for="set-company-signatory-role">Jabatan Penandatangan</label>
+                      <input type="text" id="set-company-signatory-role" class="glass-input" required placeholder="HR Payroll Specialist">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB: JAM KERJA & DENDA -->
+                <div class="settings-tab-pane" id="tab-work-hours">
+                  <h3>Jam Kerja & Denda Absensi</h3>
+                  <p class="section-desc">Aturan jam kerja karyawan, toleransi, serta perhitungan denda keterlambatan.</p>
+                  
+                  <div class="grid-2col mt-4">
+                    <div class="form-group">
+                      <label for="set-work-hour-start">Jam Masuk (Format HH:MM)</label>
+                      <input type="time" id="set-work-hour-start" class="glass-input" required value="08:00">
+                    </div>
+                    <div class="form-group">
+                      <label for="set-work-hour-end">Jam Pulang (Format HH:MM)</label>
+                      <input type="time" id="set-work-hour-end" class="glass-input" required value="17:00">
+                    </div>
+                    <div class="form-group">
+                      <label for="set-late-tolerance">Toleransi Keterlambatan (Menit)</label>
+                      <input type="number" id="set-late-tolerance" class="glass-input" required min="0" value="15">
+                    </div>
+                    <div class="form-group">
+                      <label for="set-late-fine">Denda Terlambat per Hari (Flat Rp)</label>
+                      <input type="number" id="set-late-fine" class="glass-input" required min="0" value="15000">
+                    </div>
+                    <div class="form-group">
+                      <label for="set-absent-fine">Denda Mangkir/Absen per Hari (Flat Rp)</label>
+                      <input type="number" id="set-absent-fine" class="glass-input" required min="0" value="100000">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB: REGULASI RATES -->
+                <div class="settings-tab-pane" id="tab-regulation-rates">
+                  <h3>Tarif Pajak & BPJS (Indonesia)</h3>
+                  <p class="section-desc">Parameter tarif iuran BPJS Kesehatan, Ketenagakerjaan (JHT, JP, JKK, JKM) untuk kepatuhan hukum 100%.</p>
+                  
+                  <div class="grid-2col mt-4">
+                    <!-- BPJS Kesehatan -->
+                    <div class="settings-group span-2-col">
+                      <h4>BPJS Kesehatan</h4>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-ks-employee">Tarif Potongan Karyawan (Desimal)</label>
+                      <input type="number" id="set-bpjs-ks-employee" class="glass-input" required min="0" max="1" step="0.0001" value="0.01">
+                      <small>0.01 = 1%</small>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-ks-company">Tarif Ditanggung Perusahaan (Desimal)</label>
+                      <input type="number" id="set-bpjs-ks-company" class="glass-input" required min="0" max="1" step="0.0001" value="0.04">
+                      <small>0.04 = 4%</small>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-ks-ceiling">Batas Maksimal Gaji BPJS KS (Rp)</label>
+                      <input type="number" id="set-bpjs-ks-ceiling" class="glass-input" required min="0" value="12000000">
+                    </div>
+
+                    <!-- BPJS TK JHT -->
+                    <div class="settings-group span-2-col mt-3">
+                      <h4>BPJS TK - Jaminan Hari Tua (JHT)</h4>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jht-employee">Tarif Potongan Karyawan (Desimal)</label>
+                      <input type="number" id="set-bpjs-jht-employee" class="glass-input" required min="0" max="1" step="0.0001" value="0.02">
+                      <small>0.02 = 2%</small>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jht-company">Tarif Ditanggung Perusahaan (Desimal)</label>
+                      <input type="number" id="set-bpjs-jht-company" class="glass-input" required min="0" max="1" step="0.0001" value="0.037">
+                      <small>0.037 = 3.7%</small>
+                    </div>
+
+                    <!-- BPJS TK JP -->
+                    <div class="settings-group span-2-col mt-3">
+                      <h4>BPJS TK - Jaminan Pensiun (JP)</h4>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jp-employee">Tarif Potongan Karyawan (Desimal)</label>
+                      <input type="number" id="set-bpjs-jp-employee" class="glass-input" required min="0" max="1" step="0.0001" value="0.01">
+                      <small>0.01 = 1%</small>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jp-company">Tarif Ditanggung Perusahaan (Desimal)</label>
+                      <input type="number" id="set-bpjs-jp-company" class="glass-input" required min="0" max="1" step="0.0001" value="0.02">
+                      <small>0.02 = 2%</small>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jp-ceiling">Batas Maksimal Gaji BPJS JP (Rp)</label>
+                      <input type="number" id="set-bpjs-jp-ceiling" class="glass-input" required min="0" value="10024400">
+                    </div>
+
+                    <!-- BPJS TK JKK & JKM -->
+                    <div class="settings-group span-2-col mt-3">
+                      <h4>BPJS TK - JKK & JKM Perusahaan</h4>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jkk-rate">Tarif JKK Perusahaan (Berdasarkan Tingkat Risiko)</label>
+                      <input type="number" id="set-bpjs-jkk-rate" class="glass-input" required min="0" max="1" step="0.0001" value="0.0024">
+                      <small>0.0024 = 0.24% (Risiko Sangat Rendah)</small>
+                    </div>
+                    <div class="form-group">
+                      <label for="set-bpjs-jkm-rate">Tarif JKM Perusahaan</label>
+                      <input type="number" id="set-bpjs-jkm-rate" class="glass-input" required min="0" max="1" step="0.0001" value="0.003">
+                      <small>0.003 = 0.3% (Flat)</small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="form-actions-right mt-4 pt-3 border-top">
+                  <button type="submit" class="btn btn-primary" id="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Simpan Semua Pengaturan</button>
+                </div>
+
+              </form>
+            </div>
           </div>
         </section>
 
@@ -374,6 +548,7 @@
         <div class="modal-body scroll-y">
           <div class="grid-2col">
             <!-- Profil Dasar -->
+            <div class="section-title span-2-col"><h4><i class="fa-solid fa-id-card"></i> Informasi Karyawan</h4></div>
             <div class="form-group">
               <label for="emp-nik">NIK Karyawan <span class="required">*</span></label>
               <input type="text" id="emp-nik" required class="glass-input" placeholder="Contoh: NIK1001">
@@ -387,12 +562,12 @@
               <input type="email" id="emp-email" required class="glass-input" placeholder="karyawan@perusahaan.com">
             </div>
             <div class="form-group">
-              <label for="emp-birthdate">Tanggal Lahir (Untuk password PDF) <span class="required">*</span></label>
+              <label for="emp-birthdate">Tanggal Lahir (Password PDF) <span class="required">*</span></label>
               <input type="date" id="emp-birthdate" required class="glass-input">
             </div>
             <div class="form-group">
               <label for="emp-position">Jabatan <span class="required">*</span></label>
-              <input type="text" id="emp-position" required class="glass-input" placeholder="Contoh: Software Engineer">
+              <input type="text" id="emp-position" required class="glass-input" placeholder="Contoh: PM / Tech Lead / Staff">
             </div>
             <div class="form-group">
               <label for="emp-status">Status Karyawan <span class="required">*</span></label>
@@ -418,24 +593,6 @@
                 <option value="K/I/3">K/I/3 (Kawin, Penghasilan Istri Digabung, 3 Tanggungan)</option>
               </select>
             </div>
-            
-            <!-- Keuangan -->
-            <div class="form-group">
-              <label for="emp-basic-salary">Gaji Pokok (Basic Salary) <span class="required">*</span></label>
-              <input type="number" id="emp-basic-salary" min="1" required class="glass-input" placeholder="Nilai Rupiah">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-fixed">Tunjangan Tetap <span class="required">*</span></label>
-              <input type="number" id="emp-allowance-fixed" min="0" required class="glass-input" placeholder="Tunjangan Jabatan/Keluarga" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-transport">Tunjangan Transportasi (per hari kehadiran)</label>
-              <input type="number" id="emp-allowance-transport" min="0" class="glass-input" placeholder="Makan & Transport" value="0">
-            </div>
-            <div class="form-group">
-              <label for="emp-allowance-meal">Tunjangan Makan (per hari kehadiran)</label>
-              <input type="number" id="emp-allowance-meal" min="0" class="glass-input" placeholder="Makan harian" value="0">
-            </div>
 
             <!-- Perbankan & Identitas Legal -->
             <div class="form-group">
@@ -458,6 +615,48 @@
             <div class="form-group">
               <label for="emp-bpjs-tk-id">Nomor BPJS Ketenagakerjaan</label>
               <input type="text" id="emp-bpjs-tk-id" class="glass-input" placeholder="ID BPJS TK 11 digit">
+            </div>
+
+            <!-- Gaji & Tunjangan -->
+            <div class="section-title span-2-col mt-3"><h4><i class="fa-solid fa-money-bill-wave"></i> Komponen Gaji Pokok & Tunjangan</h4></div>
+            <div class="form-group">
+              <label for="emp-basic-salary">Gaji Pokok (Basic Salary) <span class="required">*</span></label>
+              <input type="number" id="emp-basic-salary" min="1" required class="glass-input" placeholder="Gaji Pokok bulanan">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-fixed">Tunjangan Tetap <span class="required">*</span></label>
+              <input type="number" id="emp-allowance-fixed" min="0" required class="glass-input" placeholder="Tunjangan Tetap" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-position">Tunjangan Jabatan</label>
+              <input type="number" id="emp-allowance-position" min="0" class="glass-input" placeholder="Tunjangan Jabatan" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-family">Tunjangan Keluarga</label>
+              <input type="number" id="emp-allowance-family" min="0" class="glass-input" placeholder="Tunjangan Keluarga" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-communication">Tunjangan Komunikasi / Internet</label>
+              <input type="number" id="emp-allowance-communication" min="0" class="glass-input" placeholder="Tunjangan Komunikasi" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-transport">Tunjangan Transportasi (per hari hadir)</label>
+              <input type="number" id="emp-allowance-transport" min="0" class="glass-input" placeholder="Tunjangan Transport harian" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-meal">Tunjangan Makan (per hari hadir)</label>
+              <input type="number" id="emp-allowance-meal" min="0" class="glass-input" placeholder="Tunjangan Makan harian" value="0">
+            </div>
+
+            <!-- Potongan Tambahan -->
+            <div class="section-title span-2-col mt-3"><h4><i class="fa-solid fa-scissors"></i> Potongan Keanggotaan & Keuangan</h4></div>
+            <div class="form-group">
+              <label for="emp-deduction-cooperative">Potongan Koperasi Karyawan</label>
+              <input type="number" id="emp-deduction-cooperative" min="0" class="glass-input" placeholder="Potongan Koperasi" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-deduction-loan">Potongan Cicilan Pinjaman</label>
+              <input type="number" id="emp-deduction-loan" min="0" class="glass-input" placeholder="Potongan Pinjaman" value="0">
             </div>
           </div>
         </div>
@@ -489,7 +688,43 @@
     </div>
   </div>
 
-  <!-- NOTIFICATION CONTAINER -->
+  <!-- CSV IMPORT MODAL -->
+  <div class="modal-backdrop" id="modal-import-csv">
+    <div class="modal-content glass-panel modal-medium">
+      <div class="modal-header">
+        <h3>Impor Kehadiran Mesin Finger (CSV)</h3>
+        <button class="btn-close" id="btn-close-import-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body scroll-y">
+        <div class="alert alert-info">
+          <h5><i class="fa-solid fa-circle-info"></i> Petunjuk Unggah CSV</h5>
+          <p>Unggah file rekapitulasi kehadiran dari mesin sidik jari dengan format kolom berikut:</p>
+          <pre class="code-box">nik,days_present,days_late,days_absent,overtime_hours_first,overtime_hours_next,bonus,insentif,thr</pre>
+          <p class="mt-2">Contoh Baris Data:</p>
+          <pre class="code-box">NIK1001,21,1,0,2.5,4,200000,100000,0</pre>
+        </div>
+        
+        <div class="form-group mt-3">
+          <label for="import-period-select">Tentukan Periode Gaji Tujuan:</label>
+          <input type="month" id="import-period-select" class="glass-input" value="2026-05">
+        </div>
+
+        <div class="csv-upload-zone" id="csv-drop-zone">
+          <i class="fa-solid fa-cloud-arrow-up cloud-icon"></i>
+          <p>Tarik & Lepas file CSV di sini, atau klik tombol di bawah</p>
+          <input type="file" id="csv-file-input" accept=".csv" style="display:none;">
+          <button type="button" class="btn btn-secondary" id="btn-browse-csv"><i class="fa-solid fa-folder-open"></i> Pilih Berkas CSV</button>
+          <div class="selected-file-info mt-2" id="file-info-text" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-import">Batal</button>
+        <button type="button" class="btn btn-primary" id="btn-process-import" disabled><i class="fa-solid fa-upload"></i> Proses Impor Kehadiran</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION TOAST -->
   <div id="notification-toast" class="toast">
     <div class="toast-content">
       <i class="fa-solid fa-circle-info" id="toast-icon"></i>
