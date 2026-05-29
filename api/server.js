@@ -55,8 +55,8 @@ app.use(express.json());
 // Simple Authorization Middleware using HTTP headers for multi-role simulation
 function checkRole(allowedRoles) {
   return (req, res, next) => {
-    const role = req.headers['x-role'] || 'Karyawan';
-    const userId = req.headers['x-user-id'] || 'anonymous';
+    const role = req.headers['x-role'] || req.query['x-role'] || 'Karyawan';
+    const userId = req.headers['x-user-id'] || req.query['x-user-id'] || 'anonymous';
     
     req.userRole = role;
     req.userId = userId;
