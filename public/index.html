@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payroll Engine Dashboard - Automated & Compliant</title>
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background Glows -->
+  <div class="glow-bg glow-1"></div>
+  <div class="glow-bg glow-2"></div>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <i class="fa-solid fa-calculator-combined"></i>
+        </div>
+        <div class="brand-name">
+          <h2>PAYROLL<span>CORE</span></h2>
+          <small>Engine Automatisasi v1.0</small>
+        </div>
+      </div>
+      
+      <nav class="nav-menu">
+        <a href="#dashboard" class="nav-item active" data-view="dashboard">
+          <i class="fa-solid fa-chart-line"></i> <span>Dashboard</span>
+        </a>
+        <a href="#employees" class="nav-item" data-view="employees">
+          <i class="fa-solid fa-users-gear"></i> <span>Data Karyawan</span>
+        </a>
+        <a href="#attendance" class="nav-item" data-view="attendance">
+          <i class="fa-solid fa-calendar-check"></i> <span>Kehadiran & Lembur</span>
+        </a>
+        <a href="#payroll" class="nav-item" data-view="payroll">
+          <i class="fa-solid fa-file-invoice-dollar"></i> <span>Proses Payroll</span>
+        </a>
+        <a href="#audit-logs" class="nav-item" data-view="audit-logs" id="nav-audit-logs">
+          <i class="fa-solid fa-shield-halved"></i> <span>Audit Trail</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="current-user-card">
+          <i class="fa-solid fa-circle-user avatar"></i>
+          <div class="user-info">
+            <h4 id="user-display-name">HR Specialist</h4>
+            <span id="user-display-role">HR Specialist</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <main class="main-content">
+      
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="page-title">
+          <h1 id="view-title">Dashboard Utama</h1>
+          <p id="view-subtitle">Ikhtisar data operasional dan perhitungan gaji terbaru.</p>
+        </div>
+        
+        <div class="topbar-actions">
+          <!-- Role Switcher (Simulator) -->
+          <div class="role-selector-wrapper">
+            <label for="role-simulator"><i class="fa-solid fa-key"></i> Mode Akses:</label>
+            <select id="role-simulator" class="glass-select">
+              <option value="Super Admin / IT Tech">Super Admin / IT Tech</option>
+              <option value="HR Payroll Specialist" selected>HR Payroll Specialist</option>
+              <option value="Finance / Accounting">Finance / Accounting</option>
+              <option value="Management / Direksi">Management / Direksi</option>
+              <option value="Karyawan">Karyawan (Pegawai Mandiri)</option>
+            </select>
+          </div>
+
+          <!-- Active User Input for Karyawan Simulator -->
+          <div class="employee-id-simulator-wrapper" id="employee-simulator-box" style="display:none;">
+            <label for="employee-nik-simulator">NIK Pegawai:</label>
+            <input type="text" id="employee-nik-simulator" class="glass-input" placeholder="Masukkan NIK" value="NIK1001">
+          </div>
+        </div>
+      </header>
+
+      <!-- View Containers -->
+      <div class="content-body">
+        
+        <!-- DASHBOARD VIEW -->
+        <section id="view-dashboard" class="content-view active">
+          <!-- Stats Summary Grid -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon icon-blue"><i class="fa-solid fa-users"></i></div>
+              <div class="stat-data">
+                <h3>Total Karyawan</h3>
+                <h1 id="stat-total-employees">0</h1>
+                <p>Aktif bulan ini</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon icon-green"><i class="fa-solid fa-coins"></i></div>
+              <div class="stat-data">
+                <h3>Pengeluaran Payroll Terakhir</h3>
+                <h1 id="stat-last-payroll">Rp 0</h1>
+                <p id="stat-last-period">Periode: -</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon icon-amber"><i class="fa-solid fa-circle-exclamation"></i></div>
+              <div class="stat-data">
+                <h3>Persetujuan Tertunda</h3>
+                <h1 id="stat-pending-approvals">0</h1>
+                <p>Menunggu review Management</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard Charts / Analytics Simulation -->
+          <div class="grid-2col">
+            <div class="panel-card glass-panel">
+              <div class="panel-header">
+                <h3><i class="fa-solid fa-chart-simple"></i> Tren Pengeluaran Gaji Bersih (Net Salary)</h3>
+              </div>
+              <div class="panel-body">
+                <div class="chart-simulation-container">
+                  <div class="chart-bar-container" id="trend-bars">
+                    <!-- Bars injected dynamically -->
+                    <div class="no-data-placeholder">Belum ada pengeluaran payroll yang disetujui.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-card glass-panel">
+              <div class="panel-header">
+                <h3><i class="fa-solid fa-circle-info"></i> Ringkasan Regulasi Indonesia (Kepatuhan 100%)</h3>
+              </div>
+              <div class="panel-body compliance-list">
+                <div class="compliance-item">
+                  <div class="comp-badge badge-pajak">PPh 21 TER</div>
+                  <div class="comp-desc">
+                    <h4>Pajak TER & Pasal 17 Progresif</h4>
+                    <p>Skema TER (Kategori A, B, C) untuk Januari-November. Rekonsiliasi Pasal 17 progresif otomatis pada bulan Desember.</p>
+                  </div>
+                </div>
+                <div class="compliance-item">
+                  <div class="comp-badge badge-bpjs">BPJS Kesehatan</div>
+                  <div class="comp-desc">
+                    <h4>Iuran Jaminan Kesehatan</h4>
+                    <p>1% Potongan Karyawan, 4% Ditanggung Perusahaan. Batas atas upah Rp 12.000.000 per bulan.</p>
+                  </div>
+                </div>
+                <div class="compliance-item">
+                  <div class="comp-badge badge-bpjstk">BPJS Ketenagakerjaan</div>
+                  <div class="comp-desc">
+                    <h4>JHT, JP, JKK, & JKM</h4>
+                    <p>JHT (2% Kry, 3.7% Pers). JP (1% Kry, 2% Pers, batas atas Rp 10.024.400). JKK (0.24%) & JKM (0.3%) dibayar perusahaan.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- EMPLOYEES VIEW -->
+        <section id="view-employees" class="content-view">
+          <div class="panel-card glass-panel">
+            <div class="panel-header table-header-actions">
+              <h3><i class="fa-solid fa-users"></i> Daftar Karyawan</h3>
+              <button class="btn btn-primary" id="btn-add-employee"><i class="fa-solid fa-user-plus"></i> Tambah Karyawan</button>
+            </div>
+            <div class="panel-body table-responsive">
+              <table class="glass-table" id="table-employees">
+                <thead>
+                  <tr>
+                    <th>NIK</th>
+                    <th>Nama</th>
+                    <th>Jabatan</th>
+                    <th>Status</th>
+                    <th>PTKP</th>
+                    <th>Gaji Pokok</th>
+                    <th>Tunj. Tetap</th>
+                    <th>Bank Rekening</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Injected by JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ATTENDANCE VIEW -->
+        <section id="view-attendance" class="content-view">
+          <div class="panel-card glass-panel">
+            <div class="panel-header table-header-actions">
+              <div class="filter-group">
+                <label for="attendance-period">Pilih Periode:</label>
+                <input type="month" id="attendance-period" class="glass-input-small" value="2026-05">
+              </div>
+              <button class="btn btn-secondary" id="btn-load-attendance"><i class="fa-solid fa-arrows-rotate"></i> Sinkronisasi Data Kehadiran</button>
+            </div>
+            <div class="panel-body table-responsive">
+              <form id="form-attendance">
+                <table class="glass-table" id="table-attendance">
+                  <thead>
+                    <tr>
+                      <th>NIK</th>
+                      <th>Nama Karyawan</th>
+                      <th>Jabatan</th>
+                      <th>Hari Kerja</th>
+                      <th>Terlambat</th>
+                      <th>Absen (Tanpa Alasan)</th>
+                      <th>Lembur Jam 1 (1.5x)</th>
+                      <th>Lembur Jam Seterusnya (2x)</th>
+                      <th>Bonus (Rp)</th>
+                      <th>Insentif (Rp)</th>
+                      <th>THR (Rp)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Injected by JavaScript -->
+                  </tbody>
+                </table>
+                <div class="form-actions-right">
+                  <button type="submit" class="btn btn-primary" id="btn-save-attendance"><i class="fa-solid fa-floppy-disk"></i> Simpan Data Kehadiran</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAYROLL PROCESSING VIEW -->
+        <section id="view-payroll" class="content-view">
+          <div class="grid-layout-sidebar">
+            
+            <!-- Left panel: Control Payroll runs -->
+            <div class="panel-card glass-panel scroll-y">
+              <div class="panel-header">
+                <h3><i class="fa-solid fa-gears"></i> Engine Operasional</h3>
+              </div>
+              <div class="panel-body">
+                <div class="filter-group block-label">
+                  <label for="payroll-period">Periode Gaji:</label>
+                  <input type="month" id="payroll-period" class="glass-input" value="2026-05">
+                </div>
+
+                <div class="payroll-status-card" id="run-status-card">
+                  <span class="status-badge badge-neutral" id="run-status-badge">BELUM DIPROSES</span>
+                  <div class="run-stats">
+                    <p>Status: <strong id="run-status-text">Tidak Ada Data</strong></p>
+                    <p>Diajukan oleh: <span id="run-submitted-by">-</span></p>
+                    <p>Disetujui oleh: <span id="run-approved-by">-</span></p>
+                  </div>
+                  <div class="rejection-notes-box" id="rejection-notes-box" style="display:none;">
+                    <strong>Catatan Penolakan:</strong>
+                    <p id="rejection-notes-text">-</p>
+                  </div>
+                </div>
+
+                <div class="payroll-actions-stack">
+                  <!-- Operator Actions (HR) -->
+                  <button class="btn btn-primary btn-block" id="btn-generate-payroll"><i class="fa-solid fa-wand-magic-sparkles"></i> 1-Click Generate Payroll</button>
+                  <button class="btn btn-success btn-block" id="btn-submit-payroll" style="display:none;"><i class="fa-solid fa-paper-plane"></i> Ajukan ke Finance & Management</button>
+                  
+                  <!-- Verifier & Approver Actions (Finance / Management) -->
+                  <div class="approval-actions-box" id="approval-actions-box" style="display:none;">
+                    <h4 class="action-heading">Verifikasi & Persetujuan</h4>
+                    <button class="btn btn-success btn-block" id="btn-approve-payroll"><i class="fa-solid fa-circle-check"></i> Setujui (Lock Payroll)</button>
+                    <button class="btn btn-danger btn-block" id="btn-reject-payroll"><i class="fa-solid fa-circle-xmark"></i> Tolak (Kembalikan ke Draft)</button>
+                  </div>
+
+                  <!-- Disbursal Actions (Finance) -->
+                  <div class="disbursal-actions-box" id="disbursal-actions-box" style="display:none;">
+                    <h4 class="action-heading">Ekspor & Distribusi</h4>
+                    <label for="export-bank-select">Pilih Bank Corporate:</label>
+                    <select id="export-bank-select" class="glass-select btn-block">
+                      <option value="BCA">BCA (KlikBBS Format)</option>
+                      <option value="MANDIRI">MANDIRI (MCM CSV Format)</option>
+                      <option value="BRI">BRI (CMS CSV Format)</option>
+                      <option value="BNI">BNI (Direct CSV Format)</option>
+                    </select>
+                    <button class="btn btn-primary btn-block mt-2" id="btn-export-bank"><i class="fa-solid fa-file-export"></i> Ekspor Bank Clearing File</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right panel: Calculation outputs -->
+            <div class="panel-card glass-panel span-2-col scroll-y">
+              <div class="panel-header">
+                <h3><i class="fa-solid fa-list-check"></i> Rincian Perhitungan Kompensasi & Potongan Pajak</h3>
+              </div>
+              <div class="panel-body table-responsive">
+                <table class="glass-table-compact" id="table-payroll-details">
+                  <thead>
+                    <tr>
+                      <th>NIK</th>
+                      <th>Nama Karyawan</th>
+                      <th>Gaji Bruto (Cash)</th>
+                      <th>BPJS Kes (1%)</th>
+                      <th>BPJS JHT (2%)</th>
+                      <th>BPJS JP (1%)</th>
+                      <th>PPh 21 Pajak</th>
+                      <th>Potongan Gaji</th>
+                      <th>Gaji Bersih (Net)</th>
+                      <th>Slip Gaji</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="10" class="text-center">Silakan jalankan atau pilih periode payroll untuk melihat rincian kalkulasi.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- AUDIT TRAIL VIEW -->
+        <section id="view-audit-logs" class="content-view">
+          <div class="panel-card glass-panel">
+            <div class="panel-header">
+              <h3><i class="fa-solid fa-shield-halved"></i> Audit Trail (Read-Only)</h3>
+              <small class="badge badge-error">Sistem Kepatuhan Finansial - Log Absolut</small>
+            </div>
+            <div class="panel-body table-responsive">
+              <table class="glass-table" id="table-audit-logs">
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>User ID</th>
+                    <th>Aksi</th>
+                    <th>Alamat IP</th>
+                    <th>Nilai Lama</th>
+                    <th>Nilai Baru</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Injected by JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- EMPLOYEE MODAL (ADD / EDIT) -->
+  <div class="modal-backdrop" id="modal-employee">
+    <div class="modal-content glass-panel">
+      <div class="modal-header">
+        <h3 id="employee-modal-title">Tambah Karyawan Baru</h3>
+        <button class="btn-close" id="btn-close-employee-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-employee">
+        <input type="hidden" id="emp-id">
+        <div class="modal-body scroll-y">
+          <div class="grid-2col">
+            <!-- Profil Dasar -->
+            <div class="form-group">
+              <label for="emp-nik">NIK Karyawan <span class="required">*</span></label>
+              <input type="text" id="emp-nik" required class="glass-input" placeholder="Contoh: NIK1001">
+            </div>
+            <div class="form-group">
+              <label for="emp-name">Nama Lengkap <span class="required">*</span></label>
+              <input type="text" id="emp-name" required class="glass-input" placeholder="Nama sesuai KTP">
+            </div>
+            <div class="form-group">
+              <label for="emp-email">Email Perusahaan <span class="required">*</span></label>
+              <input type="email" id="emp-email" required class="glass-input" placeholder="karyawan@perusahaan.com">
+            </div>
+            <div class="form-group">
+              <label for="emp-birthdate">Tanggal Lahir (Untuk password PDF) <span class="required">*</span></label>
+              <input type="date" id="emp-birthdate" required class="glass-input">
+            </div>
+            <div class="form-group">
+              <label for="emp-position">Jabatan <span class="required">*</span></label>
+              <input type="text" id="emp-position" required class="glass-input" placeholder="Contoh: Software Engineer">
+            </div>
+            <div class="form-group">
+              <label for="emp-status">Status Karyawan <span class="required">*</span></label>
+              <select id="emp-status" required class="glass-select">
+                <option value="PKWT">PKWT (Kontrak)</option>
+                <option value="PKWTT">PKWTT (Tetap)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="emp-ptkp">Status Pajak PTKP <span class="required">*</span></label>
+              <select id="emp-ptkp" required class="glass-select">
+                <option value="TK/0">TK/0 (Belum Kawin, 0 Tanggungan)</option>
+                <option value="TK/1">TK/1 (Belum Kawin, 1 Tanggungan)</option>
+                <option value="TK/2">TK/2 (Belum Kawin, 2 Tanggungan)</option>
+                <option value="TK/3">TK/3 (Belum Kawin, 3 Tanggungan)</option>
+                <option value="K/0">K/0 (Kawin, 0 Tanggungan)</option>
+                <option value="K/1">K/1 (Kawin, 1 Tanggungan)</option>
+                <option value="K/2">K/2 (Kawin, 2 Tanggungan)</option>
+                <option value="K/3">K/3 (Kawin, 3 Tanggungan)</option>
+                <option value="K/I/0">K/I/0 (Kawin, Penghasilan Istri Digabung, 0 Tanggungan)</option>
+                <option value="K/I/1">K/I/1 (Kawin, Penghasilan Istri Digabung, 1 Tanggungan)</option>
+                <option value="K/I/2">K/I/2 (Kawin, Penghasilan Istri Digabung, 2 Tanggungan)</option>
+                <option value="K/I/3">K/I/3 (Kawin, Penghasilan Istri Digabung, 3 Tanggungan)</option>
+              </select>
+            </div>
+            
+            <!-- Keuangan -->
+            <div class="form-group">
+              <label for="emp-basic-salary">Gaji Pokok (Basic Salary) <span class="required">*</span></label>
+              <input type="number" id="emp-basic-salary" min="1" required class="glass-input" placeholder="Nilai Rupiah">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-fixed">Tunjangan Tetap <span class="required">*</span></label>
+              <input type="number" id="emp-allowance-fixed" min="0" required class="glass-input" placeholder="Tunjangan Jabatan/Keluarga" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-transport">Tunjangan Transportasi (per hari kehadiran)</label>
+              <input type="number" id="emp-allowance-transport" min="0" class="glass-input" placeholder="Makan & Transport" value="0">
+            </div>
+            <div class="form-group">
+              <label for="emp-allowance-meal">Tunjangan Makan (per hari kehadiran)</label>
+              <input type="number" id="emp-allowance-meal" min="0" class="glass-input" placeholder="Makan harian" value="0">
+            </div>
+
+            <!-- Perbankan & Identitas Legal -->
+            <div class="form-group">
+              <label for="emp-bank-name">Bank Pembayaran <span class="required">*</span></label>
+              <select id="emp-bank-name" required class="glass-select">
+                <option value="BCA">BCA</option>
+                <option value="MANDIRI">MANDIRI</option>
+                <option value="BRI">BRI</option>
+                <option value="BNI">BNI</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="emp-bank-account">Nomor Rekening <span class="required">*</span></label>
+              <input type="text" id="emp-bank-account" required class="glass-input" placeholder="Hanya angka">
+            </div>
+            <div class="form-group">
+              <label for="emp-bpjs-ks-id">Nomor BPJS Kesehatan</label>
+              <input type="text" id="emp-bpjs-ks-id" class="glass-input" placeholder="ID BPJS KS 13 digit">
+            </div>
+            <div class="form-group">
+              <label for="emp-bpjs-tk-id">Nomor BPJS Ketenagakerjaan</label>
+              <input type="text" id="emp-bpjs-tk-id" class="glass-input" placeholder="ID BPJS TK 11 digit">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-employee">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-employee-db">Simpan Karyawan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- REJECTION NOTES MODAL -->
+  <div class="modal-backdrop" id="modal-reject-notes">
+    <div class="modal-content glass-panel modal-small">
+      <div class="modal-header">
+        <h3>Tolak & Kembalikan Payroll</h3>
+        <button class="btn-close" id="btn-close-reject-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="reject-notes">Masukkan Catatan/Alasan Penolakan <span class="required">*</span></label>
+          <textarea id="reject-notes" class="glass-input" rows="4" required placeholder="Sebutkan alasan penolakan anggaran atau data kompensasi..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-reject">Batal</button>
+        <button type="button" class="btn btn-danger" id="btn-submit-reject"><i class="fa-solid fa-triangle-exclamation"></i> Kirim Penolakan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION CONTAINER -->
+  <div id="notification-toast" class="toast">
+    <div class="toast-content">
+      <i class="fa-solid fa-circle-info" id="toast-icon"></i>
+      <div class="toast-message">
+        <span id="toast-text">Pesan notifikasi sistem.</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
